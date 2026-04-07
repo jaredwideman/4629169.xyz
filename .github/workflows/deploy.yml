@@ -24,6 +24,44 @@ jobs:
 
           Write-Host "Deployed static site to $dest"
 
+      - name: Configure nginx proxy for The Buckhorner
+        shell: powershell
+        run: |
+          $nginxConf = "C:\nginx\conf\nginx.conf"
+          $marker = "# the-buckhorner proxy"
+          $content = Get-Content $nginxConf -Raw
+
+          if ($content -notmatch "the-buckhorner") {
+            # Insert the proxy block before the last closing brace of the http block
+            # Find the server block's closing area and inject before it
+            $proxyBlock = @"
+
+            $marker
+            location /the-buckhorner/ {
+                proxy_pass http://127.0.0.1:3001/the-buckhorner/;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade `$http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host `$host;
+                proxy_cache_bypass `$http_upgrade;
+            }
+"@
+            # Insert before the last } in the server block (before the closing of server {})
+            # We look for the jellyfin location block as an anchor since we know it exists
+            if ($content -match "(?s)(location\s+/jellyfin/.+?\})") {
+              $content = $content.Replace($Matches[0], "$($Matches[0])`n$proxyBlock")
+            } else {
+              # Fallback: insert before the very last two closing braces (server + http)
+              $content = $content -replace '(\}\s*\}\s*)$', "$proxyBlock`n`$1"
+            }
+
+            Set-Content -Path $nginxConf -Value $content -NoNewline
+            & C:\nginx\nginx.exe -s reload
+            Write-Host "Added nginx proxy rule for /the-buckhorner/ and reloaded"
+          } else {
+            Write-Host "nginx proxy rule already exists, skipping"
+          }
+
       - name: Deploy The Buckhorner
         shell: powershell
         run: |
