@@ -48,7 +48,7 @@ jobs:
             }
 
             Set-Content -Path $nginxConf -Value $content -NoNewline
-            & C:\nginx\nginx.exe -s reload
+            & C:\nginx\nginx.exe -p C:\nginx -s reload
             Write-Host "Added nginx proxy rule for /the-buckhorner/ and reloaded"
           } else {
             Write-Host "nginx proxy rule already exists, skipping"
