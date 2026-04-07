@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f1110;
+  --foreground: #f0ece4;
+  --accent: #c4956a;
+  --accent-soft: #a8836b;
+  --muted: #8b8478;
+  --card-bg: #181a18;
+  --card-border: #282a27;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-muted: var(--muted);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--background);
+}
+
+button, a, [role="button"] {
+  cursor: pointer;
+}
+
+/* Festival program texture */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  z-index: 50;
+}
+
+/* Warm glow for cards */
+.card-glow {
+  box-shadow: 0 0 40px -10px rgba(232, 168, 56, 0.08);
+}
+
+/* Activity card hover */
+.activity-card {
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+.activity-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px -8px rgba(232, 168, 56, 0.15);
+}
+
+/* Smooth reveal animation */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.6s ease-out forwards;
+}
+
+/* Stagger children */
+.stagger > * {
+  opacity: 0;
+  animation: fade-up 0.5s ease-out forwards;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.1s; }
+.stagger > *:nth-child(2) { animation-delay: 0.2s; }
+.stagger > *:nth-child(3) { animation-delay: 0.3s; }
+.stagger > *:nth-child(4) { animation-delay: 0.4s; }
+.stagger > *:nth-child(5) { animation-delay: 0.5s; }
+
+/* Gentle bounce for scroll arrows */
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+.animate-gentle-bounce {
+  animation: gentle-bounce 2s ease-in-out infinite;
+}
+
+/* Rainbow scroll text */
+@keyframes rainbow-scroll {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.rainbow-text {
+  display: block;
+  background: linear-gradient(90deg, #ff6b6b, #ffa94d, #ffd43b, #69db7c, #4dabf7, #b197fc, #ff6b6b);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbow-scroll 3s linear infinite;
+}
+
+/* Guest card expand/collapse */
+.guest-card-wrapper {
+  display: grid;
+  transition: grid-template-rows 300ms ease, opacity 300ms ease;
+}
+.guest-card-wrapper.collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.guest-card-wrapper.expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}

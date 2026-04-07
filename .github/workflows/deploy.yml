@@ -10,16 +10,88 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to nginx
+      - name: Deploy static site to nginx
         shell: powershell
         run: |
           $source = "${{ github.workspace }}\public\*"
           $dest = "C:\nginx\html"
 
-          # Clean old files (except acme-challenge)
+          # Clean old files (except .well-known)
           Get-ChildItem -Path $dest -Exclude '.well-known' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
           # Copy new files
           Copy-Item -Path $source -Destination $dest -Recurse -Force
 
-          Write-Host "Deployed to $dest"
+          Write-Host "Deployed static site to $dest"
+
+      - name: Deploy The Buckhorner
+        shell: powershell
+        run: |
+          $appDir = "C:\apps\the-buckhorner"
+          $source = "${{ github.workspace }}\the-buckhorner"
+          $taskName = "The Buckhorner"
+
+          # Create app directory if it doesn't exist
+          if (-not (Test-Path $appDir)) {
+            New-Item -ItemType Directory -Path $appDir -Force
+          }
+
+          # Sync source files (exclude node_modules, .next, .data)
+          robocopy $source $appDir /MIR /XD node_modules .next .data .git /XF .env.local /NFL /NDL /NJH /NJS
+          # robocopy returns non-zero for successful copies, so don't fail on it
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $LASTEXITCODE = 0
+
+          # Install dependencies and build
+          Set-Location $appDir
+          npm install --production=false
+          npm run build
+
+          # Stop existing scheduled task (which stops the node process)
+          if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+            Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+          }
+
+          # Kill any orphaned node processes for this app
+          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
+            $_.CommandLine -like "*the-buckhorner*"
+          } | ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+          }
+
+          # Register scheduled task to run at startup (idempotent)
+          $action = New-ScheduledTaskAction `
+            -Execute "powershell.exe" `
+            -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$appDir\start.ps1`"" `
+            -WorkingDirectory $appDir
+          $trigger = New-ScheduledTaskTrigger -AtStartup
+          $settings = New-ScheduledTaskSettingsSet `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -StartWhenAvailable `
+            -RestartInterval (New-TimeSpan -Minutes 1) `
+            -RestartCount 3
+
+          Register-ScheduledTask `
+            -TaskName $taskName `
+            -Action $action `
+            -Trigger $trigger `
+            -Settings $settings `
+            -User "SYSTEM" `
+            -RunLevel Highest `
+            -Force
+
+          # Start it now
+          Start-ScheduledTask -TaskName $taskName
+
+          Start-Sleep -Seconds 3
+
+          # Verify it's running
+          $task = Get-ScheduledTask -TaskName $taskName
+          if ($task.State -eq "Running") {
+            Write-Host "The Buckhorner deployed and running on port 3001"
+          } else {
+            Write-Host "WARNING: Task registered but may not be running yet (state: $($task.State))"
+            Write-Host "Check C:\apps\the-buckhorner\stderr.log for errors"
+          }
