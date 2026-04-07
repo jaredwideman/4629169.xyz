@@ -16,7 +16,7 @@ const activities = [
     title: "Liftlock Cruise",
     time: "Friday, Aug 21 — ~3pm",
     description:
-      "2-hour sightseeing cruise from Peterborough Marina. Goes through the world's highest hydraulic liftlock. $35/person, cash only. Confirming max group size.",
+      "2-hour sightseeing cruise from Peterborough Marina. Goes through the world's highest hydraulic liftlock. Boat holds up to 92 passengers. Cash bar on board. $35/person, cash only.",
   },
   {
     title: "Backyard Campfire",
