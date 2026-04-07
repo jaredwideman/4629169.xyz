@@ -74,6 +74,7 @@ jobs:
 
           # Install dependencies and build
           Set-Location $appDir
+          $env:NEXT_PUBLIC_BASE_PATH = "/the-buckhorner"
           npm install --production=false
           npm run build
 
