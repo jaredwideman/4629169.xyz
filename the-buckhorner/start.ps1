@@ -13,4 +13,4 @@ if (Test-Path $envFile) {
     }
 }
 
-node node_modules\.bin\next start -p 3001
+node node_modules\next\dist\bin\next start -p 3001
