@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4629169.xyz</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #008080;
+            font-family: "Microsoft Sans Serif", "MS Sans Serif", Arial, sans-serif;
+            font-size: 11px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* Desktop area */
+        .desktop {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 24px;
+        }
+
+        /* Desktop icons */
+        .icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 75px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .icon:hover .icon-label {
+            background: #000080;
+            color: #fff;
+        }
+
+        .icon-img {
+            width: 48px;
+            height: 48px;
+            image-rendering: pixelated;
+            margin-bottom: 4px;
+        }
+
+        .icon-label {
+            color: #fff;
+            text-align: center;
+            padding: 1px 3px;
+            text-shadow: 1px 1px 1px #000;
+            word-wrap: break-word;
+            max-width: 75px;
+        }
+
+        .icon:hover .icon-label {
+            text-shadow: none;
+        }
+
+        /* Win95 pixel art icons via inline SVG */
+        .icon-folder {
+            background: none;
+        }
+
+        /* Taskbar */
+        .taskbar {
+            height: 28px;
+            background: #c0c0c0;
+            border-top: 2px solid #fff;
+            display: flex;
+            align-items: center;
+            padding: 2px 4px;
+            gap: 4px;
+        }
+
+        .start-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            height: 22px;
+            background: #c0c0c0;
+            border-top: 2px solid #fff;
+            border-left: 2px solid #fff;
+            border-bottom: 2px solid #404040;
+            border-right: 2px solid #404040;
+            font-weight: bold;
+            font-size: 11px;
+            font-family: "Microsoft Sans Serif", Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .start-btn:active {
+            border-top: 2px solid #404040;
+            border-left: 2px solid #404040;
+            border-bottom: 2px solid #fff;
+            border-right: 2px solid #fff;
+        }
+
+        .start-logo {
+            width: 16px;
+            height: 16px;
+        }
+
+        .taskbar-divider {
+            width: 2px;
+            height: 22px;
+            border-left: 1px solid #808080;
+            border-right: 1px solid #fff;
+            margin: 0 2px;
+        }
+
+        .taskbar-clock {
+            margin-left: auto;
+            padding: 2px 8px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            border-top: 2px solid #404040;
+            border-left: 2px solid #404040;
+            border-bottom: 2px solid #fff;
+            border-right: 2px solid #fff;
+            font-size: 11px;
+            font-family: "Microsoft Sans Serif", Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="desktop">
+        <!-- Jellyfin -->
+        <a href="/jellyfin/" class="icon">
+            <svg class="icon-img" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="8" width="40" height="32" rx="2" fill="#1a1a2e"/>
+                <rect x="6" y="10" width="36" height="24" fill="#16213e"/>
+                <circle cx="24" cy="22" r="8" fill="none" stroke="#00a4dc" stroke-width="2"/>
+                <circle cx="24" cy="22" r="3" fill="#00a4dc"/>
+                <rect x="8" y="36" width="32" height="2" fill="#808080"/>
+            </svg>
+            <span class="icon-label">Jellyfin</span>
+        </a>
+
+        <!-- The Buckhorner -->
+        <a href="/the-buckhorner/" class="icon">
+            <svg class="icon-img" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="40" height="40" rx="2" fill="#c0c0c0"/>
+                <rect x="4" y="4" width="40" height="40" rx="2" fill="none" stroke="#808080" stroke-width="1"/>
+                <rect x="6" y="6" width="36" height="14" fill="#000080"/>
+                <text x="24" y="16" fill="#fff" font-size="8" font-family="Arial" text-anchor="middle" font-weight="bold">WWW</text>
+                <rect x="8" y="24" width="32" height="2" fill="#808080"/>
+                <rect x="8" y="28" width="24" height="2" fill="#808080"/>
+                <rect x="8" y="32" width="28" height="2" fill="#808080"/>
+                <rect x="8" y="36" width="20" height="2" fill="#808080"/>
+            </svg>
+            <span class="icon-label">The Buckhorner</span>
+        </a>
+    </div>
+
+    <!-- Taskbar -->
+    <div class="taskbar">
+        <div class="start-btn">
+            <svg class="start-logo" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="6" height="6" fill="#ff0000"/>
+                <rect x="9" y="1" width="6" height="6" fill="#00ff00"/>
+                <rect x="1" y="9" width="6" height="6" fill="#0000ff"/>
+                <rect x="9" y="9" width="6" height="6" fill="#ffff00"/>
+            </svg>
+            Start
+        </div>
+        <div class="taskbar-divider"></div>
+        <div class="taskbar-clock" id="clock"></div>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes().toString().padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            document.getElementById('clock').textContent = h12 + ':' + m + ' ' + ampm;
+        }
+        updateClock();
+        setInterval(updateClock, 30000);
+    </script>
+</body>
+</html>

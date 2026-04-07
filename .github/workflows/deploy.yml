@@ -1,0 +1,25 @@
+name: Deploy to server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to nginx
+        shell: powershell
+        run: |
+          $source = "${{ github.workspace }}\public\*"
+          $dest = "C:\nginx\html"
+
+          # Clean old files (except acme-challenge)
+          Get-ChildItem -Path $dest -Exclude '.well-known' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+          # Copy new files
+          Copy-Item -Path $source -Destination $dest -Recurse -Force
+
+          Write-Host "Deployed to $dest"
