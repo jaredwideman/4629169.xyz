@@ -79,8 +79,9 @@ export default function Home() {
             <div>
               <h3 className="text-foreground font-semibold mb-1">Bring</h3>
               <p>
-                Yourself. Your friends. A sleeping bag. Sunscreen. Whatever
-                you&apos;d want for a weekend in cottage country.
+                Yourself. Your friends. A sleeping bag and a tent (or sleep
+                in the house). Sunscreen. Whatever you&apos;d want for a
+                weekend in cottage country.
               </p>
             </div>
           </div>
