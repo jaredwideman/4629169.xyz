@@ -33,7 +33,7 @@ jobs:
           if ($content -notmatch "the-buckhorner") {
             $proxyBlock = "`n            # the-buckhorner proxy`n"
             $proxyBlock += "            location /the-buckhorner/ {`n"
-            $proxyBlock += "                proxy_pass http://127.0.0.1:3001/the-buckhorner/;`n"
+            $proxyBlock += "                proxy_pass http://127.0.0.1:3001;`n"
             $proxyBlock += "                proxy_http_version 1.1;`n"
             $proxyBlock += '                proxy_set_header Upgrade $http_upgrade;' + "`n"
             $proxyBlock += "                proxy_set_header Connection 'upgrade';`n"
@@ -66,7 +66,7 @@ jobs:
             New-Item -ItemType Directory -Path $appDir -Force
           }
 
-          # Sync source files (exclude node_modules, .next, .data)
+          # Sync source files (preserve node_modules, .next build cache, .data, .env.local)
           robocopy $source $appDir /MIR /XD node_modules .next .data .git /XF .env.local /NFL /NDL /NJH /NJS
           # robocopy returns non-zero for successful copies, so don't fail on it
           if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
