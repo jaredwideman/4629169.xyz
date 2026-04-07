@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import Image from "next/image";
 
 const GOATCHELLA_INFO =
   "A one-day festival on a 200-acre farm in Port Hope. Goat races, pig races, chicken bingo, dog dancing, alpaca meet & greets, hay wagon rides, live music, artisan vendors, face painting, and something called a Mini Shmurgle. Admission is $10.";
@@ -37,8 +36,8 @@ export function GoatchellaInfo() {
   return (
     <div className="flex flex-col items-center text-center">
       <a href="https://hautegoat.com/goatchella/" target="_blank" rel="noopener noreferrer">
-        <Image
-          src="/haute-goat.png"
+        <img
+          src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/haute-goat.png`}
           alt="Haute Goat"
           width={220}
           height={120}

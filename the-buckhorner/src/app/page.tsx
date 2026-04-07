@@ -28,9 +28,9 @@ export default function Home() {
             Jared &amp; Jen&apos;s 30th Birthday + Housewarming
           </p>
           <p className="text-foreground/80 text-lg mt-8 max-w-lg mx-auto leading-relaxed">
-            We miss you. Come hang. Bring your friends.
+            We miss you. Come hang and bring your friends.
             <br />
-            Bring a sleeping bag.
+            Bring a sleeping bag, perhaps a tent.
           </p>
           <ScrollArrow to="activities" />
         </div>
