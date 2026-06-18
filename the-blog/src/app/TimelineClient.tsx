@@ -16,8 +16,6 @@ type Props = {
 };
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const ESTIMATED_ITEM_HEIGHT = 560;
-const OVERSCAN = 4;
 
 function readQueryTags() {
   const params = new URLSearchParams(window.location.search);
@@ -43,7 +41,6 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   const [availableTags, setAvailableTags] = useState(allTags);
   const [activeTags, setActiveTags] = useState(selectedTags);
   const [loading, setLoading] = useState(false);
-  const [range, setRange] = useState({ start: 0, end: Math.min(initialItems.length, 10) });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const requestIdRef = useRef(0);
 
@@ -62,7 +59,6 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setActiveTags(sorted);
-    setRange({ start: 0, end: 10 });
     if (updateUrl) writeQueryTags(sorted);
     try {
       const json = await fetchPage(sorted, null);
@@ -70,7 +66,6 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
       setItems(json.items);
       setNextCursor(json.nextCursor);
       setAvailableTags(json.tags);
-      setRange({ start: 0, end: Math.min(json.items.length, 10) });
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
@@ -97,21 +92,6 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   }, [applyFilter]);
 
   useEffect(() => {
-    const onScroll = () => {
-      const start = Math.max(0, Math.floor(window.scrollY / ESTIMATED_ITEM_HEIGHT) - OVERSCAN);
-      const visible = Math.ceil(window.innerHeight / ESTIMATED_ITEM_HEIGHT) + OVERSCAN * 2;
-      setRange({ start, end: Math.min(items.length, start + visible) });
-    };
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [items.length]);
-
-  useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver((entries) => {
@@ -121,21 +101,16 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const visibleItems = useMemo(() => items.slice(range.start, range.end).map((item, offset) => {
-    const index = range.start + offset;
-    return {
-      item,
-      showDate: index === 0 || items[index - 1]?.date !== item.date,
-      sameDateNext: items[index + 1]?.date === item.date,
-    };
-  }), [items, range]);
+  const visibleItems = useMemo(() => items.map((item, index) => ({
+    item,
+    showDate: index === 0 || items[index - 1]?.date !== item.date,
+    sameDateNext: items[index + 1]?.date === item.date,
+  })), [items]);
   const displayedTags = useMemo(() => {
     const byTag = new Map(availableTags.map((t) => [t.tag, t]));
     for (const tag of activeTags) if (!byTag.has(tag)) byTag.set(tag, { tag, count: 0 });
     return Array.from(byTag.values()).sort((a, b) => a.tag.localeCompare(b.tag));
   }, [activeTags, availableTags]);
-  const topSpacer = range.start * ESTIMATED_ITEM_HEIGHT;
-  const bottomSpacer = Math.max(0, (items.length - range.end) * ESTIMATED_ITEM_HEIGHT);
 
   function toggleTag(tag: string) {
     const next = activeTags.includes(tag) ? activeTags.filter((t) => t !== tag) : [...activeTags, tag];
@@ -159,9 +134,7 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
       {items.length === 0 && !loading ? <p className="empty">No timeline items match this filter.</p> : null}
 
       <section className="timeline" aria-live="polite">
-        <div style={{ height: topSpacer }} />
         {visibleItems.map(({ item, showDate, sameDateNext }) => <TimelineCard key={item.id} item={item} showDate={showDate} sameDateNext={sameDateNext} />)}
-        <div style={{ height: bottomSpacer }} />
       </section>
       <div ref={sentinelRef} className="timeline-sentinel">{loading ? "Loading…" : nextCursor ? "Scroll for more" : items.length ? "End" : ""}</div>
       <LivePhotoScript />
