@@ -39,6 +39,10 @@ article.post img, article.post video { max-width: 100%; height: auto; border-rad
 article.post figure { margin: 28px 0; }
 article.post figure img, article.post figure video { display: block; margin: 0 auto; }
 article.post figcaption { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.4; text-align: center; }
+.live-photo { position: relative; display: inline-block; cursor: pointer; max-width: 100%; }
+.live-photo img { display: block; }
+.live-badge { position: absolute; right: 10px; bottom: 10px; width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; background: rgba(0,0,0,.62); color: #fff; font-size: 13px; line-height: 1; padding-left: 2px; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
+.live-photo.is-live .live-badge { opacity: .55; }
 article.post pre {
   background: var(--code-bg); padding: 12px 16px; border-radius: 6px;
   overflow-x: auto; font-size: 14px;

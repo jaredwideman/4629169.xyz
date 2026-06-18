@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPostBySlug } from "@/lib/posts";
 import { getSession } from "@/lib/auth";
+import LivePhotoScript from "../LivePhotoScript";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export default async function PostPage({ params }: Props) {
         <h1>{post.title}{post.draft ? <span className="draft-badge">DRAFT</span> : null}</h1>
         <div className="date">{post.date}</div>
         <div dangerouslySetInnerHTML={{ __html: post.html }} />
+        <LivePhotoScript />
       </article>
     </div>
   );

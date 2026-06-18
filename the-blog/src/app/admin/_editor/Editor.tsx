@@ -49,10 +49,14 @@ function inlineCaptionMarkdown(s: string) {
 }
 
 function expandCaptionImages(md: string) {
-  return md.replace(/^!\[(.*)\]\(([^\s)]+)\)\s*$/gm, (match, caption: string, src: string) => {
-    if (!caption.trim()) return match;
+  return md.replace(/^!\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*$/gm, (match, caption: string, src: string, liveSrc?: string) => {
+    if (!caption.trim() && !liveSrc) return match;
     const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
-    return `<figure>\n<img src="${src}" alt="${escapeHtml(alt)}" />\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>\n</figure>`;
+    const img = liveSrc
+      ? `<span class="live-photo"><img src="${src}" data-live-src="${liveSrc}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
+      : `<img src="${src}" alt="${escapeHtml(alt)}" />`;
+    const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
+    return `<figure>\n${img}${captionHtml}\n</figure>`;
   });
 }
 
@@ -129,6 +133,34 @@ export default function Editor({ mode, initial }: Props) {
     return json.url as string;
   }
 
+  function isHeic(file: File) {
+    return /\.(heic|heif)$/i.test(file.name) || /image\/(heic|heif)/i.test(file.type);
+  }
+
+  async function convertHeic(file: File, toType: "image/jpeg" | "image/gif") {
+    const { default: heic2any } = await import("heic2any");
+    const result = await heic2any({ blob: file, toType, quality: 0.9 });
+    const blob = Array.isArray(result) ? result[0] : result;
+    const ext = toType === "image/gif" ? "gif" : "jpg";
+    const base = file.name.replace(/\.(heic|heif)$/i, "");
+    return new File([blob], `${base}.${ext}`, { type: toType });
+  }
+
+  async function uploadHeic(file: File) {
+    setStatus(`Converting ${file.name}…`);
+    const still = await convertHeic(file, "image/jpeg");
+    const stillUrl = await uploadFile(still);
+    if (!stillUrl) return null;
+
+    try {
+      const animated = await convertHeic(file, "image/gif");
+      const animatedUrl = await uploadFile(animated);
+      return { stillUrl, animatedUrl };
+    } catch {
+      return { stillUrl, animatedUrl: null };
+    }
+  }
+
   function insertAtCursor(text: string) {
     const view = editorRef.current;
     if (!view) {
@@ -156,6 +188,13 @@ export default function Editor({ mode, initial }: Props) {
 
   async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {
+      if (isHeic(file)) {
+        const uploaded = await uploadHeic(file);
+        if (!uploaded) continue;
+        const title = uploaded.animatedUrl ? ` "live:${uploaded.animatedUrl}"` : "";
+        insertAtCursor(`\n![](${uploaded.stillUrl}${title})\n`);
+        continue;
+      }
       const url = await uploadFile(file);
       if (!url) continue;
       insertAtCursor(mediaMarkup(file, url));

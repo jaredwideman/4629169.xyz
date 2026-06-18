@@ -160,17 +160,21 @@ async function expandCaptionImages(md: string): Promise<string> {
   // ![caption with [links](https://example.com)](/image.jpg)
   // becomes a semantic figure with markdown-rendered caption HTML.
   // ![](/image.jpg) stays as a plain markdown image.
-  const re = /^!\[(.*)\]\(([^\s)]+)\)\s*$/gm;
+  const re = /^!\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*$/gm;
   const matches = Array.from(md.matchAll(re));
   let out = md;
   for (let i = matches.length - 1; i >= 0; i--) {
     const match = matches[i];
     const caption = match[1] || "";
     const src = match[2] || "";
-    if (!caption.trim()) continue;
-    const captionHtml = await inlineMarkdown(caption);
+    const liveSrc = match[3] || "";
+    if (!caption.trim() && !liveSrc) continue;
+    const captionHtml = caption.trim() ? await inlineMarkdown(caption) : "";
     const altText = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
-    const figure = `<figure>\n<img src="${src}" alt="${altText}">\n<figcaption>${captionHtml}</figcaption>\n</figure>`;
+    const media = liveSrc
+      ? `<span class="live-photo"><img src="${src}" data-live-src="${liveSrc}" alt="${altText}"><span class="live-badge">▶</span></span>`
+      : `<img src="${src}" alt="${altText}">`;
+    const figure = `<figure>\n${media}\n${captionHtml ? `<figcaption>${captionHtml}</figcaption>\n` : ""}</figure>`;
     out = out.slice(0, match.index) + figure + out.slice((match.index || 0) + match[0].length);
   }
   return out;
