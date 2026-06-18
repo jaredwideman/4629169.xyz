@@ -16,8 +16,6 @@ Like many things I introduce to my routine of life, this one _may_ not stick. Bu
 
 _I am going to try to put media from the last days since the last blog post here that I care to share. Since this is the first blog post, I suppose I should find my favourite pictures/videos of the last 29.995 years._
 
-**TODO: Insert more images?**
-
 <video controls src="/blog/uploads/2026/06/c3Dv6CNndZ.mov"></video>
 
 ![(2026-06-13) Jen and I went golfing for the first time as a couple on Saturday. We played best ball off the tee, and every other shot was 1v1. We both shot like 2-3 over par at [Katchiwano](http://www.katchiwano.ca/) but had more fun than all the other white guys imo](/blog/uploads/2026/06/hsETwrIB5T.jpg)
@@ -25,5 +23,3 @@ _I am going to try to put media from the last days since the last blog post here
 
 ![(2026-06-17) We ordered a 10-ft stock tank pool and then began the arduous process of getting it set up so it wasn't an algae-soup container. This meant running TECK90 up on top of the rock because this big bucket wasn't not going up in nature. Here it is set up with pump working (finally!)](/blog/uploads/2026/06/FskQhTzpl-.jpg "live:/blog/uploads/2026/06/FskQhTzpl-.gif")
 
-
-![](/blog/uploads/2026/06/JzHruXK3sm.jpg)
