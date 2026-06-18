@@ -17,6 +17,7 @@ export type TimelineMedia = {
   altText: string;
   positionX?: number;
   positionY?: number;
+  volume?: number;
 };
 
 export type TimelineItem = {
@@ -62,6 +63,7 @@ type ParsedMediaSource = {
   src: string;
   positionX?: number;
   positionY?: number;
+  volume?: number;
 };
 
 export function timelineDir(): string {
@@ -106,16 +108,19 @@ function clampPercent(n: number): number {
 
 export function parseMediaSourcePart(part: string): ParsedMediaSource {
   const clean = part.trim();
-  const match = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
-  if (!match) return { src: clean };
+  const volumeMatch = clean.match(/^(.*)@v(\d{1,3})$/i);
+  if (volumeMatch) return { src: volumeMatch[1], volume: clampPercent(Number(volumeMatch[2])) };
+  const cropMatch = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
+  if (!cropMatch) return { src: clean };
   return {
-    src: match[1],
-    positionX: clampPercent(Number(match[2])),
-    positionY: clampPercent(Number(match[3])),
+    src: cropMatch[1],
+    positionX: clampPercent(Number(cropMatch[2])),
+    positionY: clampPercent(Number(cropMatch[3])),
   };
 }
 
 export function formatMediaSourcePart(part: ParsedMediaSource): string {
+  if (part.volume !== undefined) return `${part.src}@v${clampPercent(part.volume)}`;
   if (part.positionX === undefined || part.positionY === undefined) return part.src;
   return `${part.src}@${clampPercent(part.positionX)},${clampPercent(part.positionY)}`;
 }
@@ -237,7 +242,9 @@ export async function parseTimelineItemsFromMarkdown(input: {
 
     const marker = match[1];
     const captionMarkdown = match[2].trim();
-    const src = match[3].trim();
+    const rawSrc = match[3].trim();
+    const parsedSrc = parseMediaSourcePart(rawSrc);
+    const src = parsedSrc.src;
     const liveSrc = match[4]?.trim();
     const tags = match[5].split(",").map(normalizeTag).filter(Boolean);
     const date = match[6].trim();
@@ -245,11 +252,11 @@ export async function parseTimelineItemsFromMarkdown(input: {
 
     const altText = stripMarkdownForAlt(captionMarkdown);
     const media: TimelineMedia[] = marker === "@"
-      ? [{ kind: "video", src, altText }]
-      : src.split("|").map((part) => parseMediaSourcePart(part)).filter((part) => Boolean(part.src)).map((part) => ({
+      ? [{ kind: "video", src, altText, volume: parsedSrc.volume }]
+      : rawSrc.split("|").map((part) => parseMediaSourcePart(part)).filter((part) => Boolean(part.src)).map((part) => ({
         kind: liveSrc ? "live-photo" : "image",
         src: part.src,
-        liveSrc: src.includes("|") ? undefined : liveSrc,
+        liveSrc: rawSrc.includes("|") ? undefined : liveSrc,
         altText,
         positionX: part.positionX,
         positionY: part.positionY,

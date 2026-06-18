@@ -158,7 +158,7 @@ function TimelineCard({ item, showDate, sameDateNext }: { item: TimelineItem; sh
   );
 }
 
-function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string; positionX?: number; positionY?: number } }) {
+function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string; positionX?: number; positionY?: number; volume?: number } }) {
   const [position, setPosition] = useState({ x: media.positionX ?? 50, y: media.positionY ?? 50 });
   const style = { objectPosition: `${position.x}% ${position.y}%` };
 
@@ -184,7 +184,7 @@ function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?
     window.addEventListener("pointerup", up, { once: true });
   }
 
-  if (media.kind === "video") return <video src={media.src} playsInline data-auto-video />;
+  if (media.kind === "video") return <video src={media.src} playsInline data-auto-video data-volume={media.volume ?? 100} />;
   if (media.kind === "live-photo") {
     return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} style={style} onPointerDown={onPointerDown} draggable={false} /><span className="live-badge">▶</span></span>;
   }

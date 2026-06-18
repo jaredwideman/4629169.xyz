@@ -69,9 +69,11 @@ export default function LivePhotoScript() {
     function setupVideos() {
       const found = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
       for (const video of found) {
+        const volume = Math.max(0, Math.min(100, Number(video.dataset.volume || 100))) / 100;
         video.removeAttribute("controls");
         video.defaultMuted = mutedEnabled;
         video.muted = mutedEnabled;
+        video.volume = volume;
         video.loop = true;
         video.autoplay = autoplayEnabled;
         video.playsInline = true;

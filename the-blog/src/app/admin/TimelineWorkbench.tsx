@@ -19,7 +19,7 @@ type Props = {
 
 type ValidationMessage = { line: number; level: "error" | "warning"; message: string };
 type TimelineSourceEntry = { line: string; date: string; originalIndex: number };
-type ParsedMediaSource = { src: string; positionX?: number; positionY?: number };
+type ParsedMediaSource = { src: string; positionX?: number; positionY?: number; volume?: number };
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const MEDIA_RE = /^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/;
@@ -50,12 +50,15 @@ function clampPercent(n: number) {
 
 function parseMediaSourcePart(part: string): ParsedMediaSource {
   const clean = part.trim();
-  const match = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
-  if (!match) return { src: clean };
-  return { src: match[1], positionX: clampPercent(Number(match[2])), positionY: clampPercent(Number(match[3])) };
+  const volumeMatch = clean.match(/^(.*)@v(\d{1,3})$/i);
+  if (volumeMatch) return { src: volumeMatch[1], volume: clampPercent(Number(volumeMatch[2])) };
+  const cropMatch = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
+  if (!cropMatch) return { src: clean };
+  return { src: cropMatch[1], positionX: clampPercent(Number(cropMatch[2])), positionY: clampPercent(Number(cropMatch[3])) };
 }
 
 function formatMediaSourcePart(part: ParsedMediaSource) {
+  if (part.volume !== undefined) return `${part.src}@v${clampPercent(part.volume)}`;
   if (part.positionX === undefined || part.positionY === undefined) return part.src;
   return `${part.src}@${clampPercent(part.positionX)},${clampPercent(part.positionY)}`;
 }
@@ -78,13 +81,13 @@ function expandTimelineMarkdown(md: string) {
     const tags = match[5];
     const cleanDate = match[6].trim();
     const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").replace(/[<>]/g, "");
-    const mediaParts = marker === "@" ? [{ src }] : src.split("|").map(parseMediaSourcePart).filter((part) => Boolean(part.src));
+    const mediaParts = marker === "@" ? [parseMediaSourcePart(src)] : src.split("|").map(parseMediaSourcePart).filter((part) => Boolean(part.src));
     const media = mediaParts.map((part, mediaIndex) => {
       const x = part.positionX ?? 50;
       const y = part.positionY ?? 50;
       const cropAttrs = `data-crop-line="${lineIndex}" data-crop-index="${mediaIndex}" data-crop-x="${x}" data-crop-y="${y}" draggable="false" style="object-position:${x}% ${y}%"`;
       return marker === "@"
-        ? `<video src="${escapeHtml(part.src)}" playsinline data-auto-video></video>`
+        ? `<video src="${escapeHtml(part.src)}" playsinline controls data-auto-video data-volume="${part.volume ?? 100}"></video>`
         : liveSrc && mediaParts.length === 1
           ? `<span class="live-photo"><img src="${escapeHtml(part.src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" ${cropAttrs} /><span class="live-badge">▶</span></span>`
           : `<img src="${escapeHtml(part.src)}" alt="${escapeHtml(alt)}" ${cropAttrs} />`;
@@ -147,7 +150,10 @@ function validateTimelineMarkdown(md: string): ValidationMessage[] {
     const liveSrc = match[4];
     const tags = match[5].split(",").map(normalizeTag).filter(Boolean);
     const date = match[6].trim();
+    const parsedSrc = parseMediaSourcePart(match[3]);
     if (marker === "@" && liveSrc) messages.push({ line: lineNo, level: "warning", message: "Video items ignore live: sources" });
+    if (marker === "@" && parsedSrc.volume !== undefined && !/@v\d{1,3}$/i.test(match[3])) messages.push({ line: lineNo, level: "warning", message: "Video volume should use @vNN, e.g. @v35" });
+    if (marker === "!" && match[3].includes("@v")) messages.push({ line: lineNo, level: "warning", message: "Image items ignore @v volume suffixes" });
     if (marker === "!" && match[3].includes("|") && liveSrc) messages.push({ line: lineNo, level: "warning", message: "Multi-image items ignore live: sources" });
     if (!isValidDate(date)) messages.push({ line: lineNo, level: "error", message: "Invalid date; expected a real YYYY-MM-DD date" });
     if (tags.length === 0) messages.push({ line: lineNo, level: "error", message: "At least one tag is required" });
@@ -250,7 +256,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
       const isVideo = file.type.startsWith("video/");
       if (!isVideo && !uploaded.liveUrl) plainImages.push(uploaded.url);
       else if (uploaded.liveUrl) snippets.push(`![caption](${uploaded.url} "live:${uploaded.liveUrl}")<tag>{${todayISO()}}`);
-      else snippets.push(`@[caption](${uploaded.url})<tag>{${todayISO()}}`);
+      else snippets.push(`@[caption](${uploaded.url}@v100)<tag>{${todayISO()}}`);
     }
     if (plainImages.length === 1) snippets.unshift(`![caption](${plainImages[0]})<tag>{${todayISO()}}`);
     else if (plainImages.length > 1) snippets.unshift(`![caption](${plainImages.join("|")})<tag>{${todayISO()}}`);
@@ -275,6 +281,13 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
   }
 
   const previewBody = useMemo(() => formatTimelineSource(body), [body]);
+
+  useEffect(() => {
+    const videos = document.querySelectorAll<HTMLVideoElement>(".source-preview video[data-volume]");
+    for (const video of videos) {
+      video.volume = Math.max(0, Math.min(100, Number(video.dataset.volume || 100))) / 100;
+    }
+  }, [previewBody]);
 
   function updatePreviewCrop(lineIndex: number, mediaIndex: number, x: number, y: number) {
     const lines = previewBody.split(/\r?\n/);
@@ -372,7 +385,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
       </div>
 
       <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}>
-        Source format: ![caption](image)&lt;tag1,tag2&gt;{'{YYYY-MM-DD}'} · ![caption](image1|image2|image3)&lt;tag&gt;{'{YYYY-MM-DD}'} · @[caption](video)&lt;tag&gt;{'{YYYY-MM-DD}'}. Drag/drop media to upload and insert snippets.
+        Source format: ![caption](image)&lt;tag1,tag2&gt;{'{YYYY-MM-DD}'} · ![caption](image1|image2|image3)&lt;tag&gt;{'{YYYY-MM-DD}'} · @[caption](video@v75)&lt;tag&gt;{'{YYYY-MM-DD}'}. Use @v0-100 for default video volume. Drag/drop media to upload and insert snippets.
       </p>
     </div>
   );
