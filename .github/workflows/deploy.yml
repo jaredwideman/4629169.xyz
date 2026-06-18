@@ -90,6 +90,16 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
 
+      - name: Ensure ImageMagick for HEIC conversion
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Continue"
+          if (-not (Get-Command magick -ErrorAction SilentlyContinue)) {
+            if (Get-Command winget -ErrorAction SilentlyContinue) {
+              winget install --id ImageMagick.ImageMagick --exact --silent --accept-package-agreements --accept-source-agreements
+            }
+          }
+
       - name: Deploy the-blog
         shell: powershell
         env:

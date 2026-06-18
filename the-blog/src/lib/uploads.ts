@@ -1,6 +1,11 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { nanoid } from "nanoid";
+
+const execFileAsync = promisify(execFile);
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -37,6 +42,28 @@ export function isAllowedMime(m: string) {
 export function uploadsDir(): string {
   if (process.env.UPLOADS_DIR) return path.resolve(process.env.UPLOADS_DIR);
   return path.resolve(process.cwd(), "public", "uploads");
+}
+
+async function convertHeicWithMagick(buf: Buffer, dir: string, id: string): Promise<{ jpg: Buffer; gif?: Buffer }> {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "blog-heic-"));
+  const input = path.join(tmp, `${id}.heic`);
+  const jpgPath = path.join(tmp, `${id}.jpg`);
+  const gifPath = path.join(tmp, `${id}.gif`);
+  try {
+    await fs.writeFile(input, buf);
+    await execFileAsync("magick", [input + "[0]", "-auto-orient", "-quality", "88", jpgPath], { timeout: 120000 });
+    const jpg = await fs.readFile(jpgPath);
+    let gif: Buffer | undefined;
+    try {
+      await execFileAsync("magick", [input, "-auto-orient", "-coalesce", "-loop", "0", gifPath], { timeout: 120000 });
+      gif = await fs.readFile(gifPath);
+    } catch {
+      // Still-only HEIC or unsupported animation. No play button.
+    }
+    return { jpg, gif };
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 export async function saveUpload(file: File): Promise<{ url: string; relPath: string; bytes: number; mime: string; liveUrl?: string }> {
@@ -86,8 +113,28 @@ export async function saveUpload(file: File): Promise<{ url: string; relPath: st
         liveUrl,
       };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      throw new Error(`Could not convert HEIC/HEIF image: ${msg}`);
+      try {
+        const converted = await convertHeicWithMagick(buf, dir, id);
+        const jpgFilename = `${id}.jpg`;
+        await fs.writeFile(path.join(dir, jpgFilename), converted.jpg);
+        let liveUrl: string | undefined;
+        if (converted.gif) {
+          const gifFilename = `${id}.gif`;
+          await fs.writeFile(path.join(dir, gifFilename), converted.gif);
+          liveUrl = `${basePath}/uploads/${yyyy}/${mm}/${gifFilename}`;
+        }
+        return {
+          url: `${basePath}/uploads/${yyyy}/${mm}/${jpgFilename}`,
+          relPath: `${yyyy}/${mm}/${jpgFilename}`,
+          bytes: converted.jpg.length,
+          mime: "image/jpeg",
+          liveUrl,
+        };
+      } catch (fallbackError) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        throw new Error(`Could not convert HEIC/HEIF image: ${msg}; ImageMagick fallback also failed: ${fallbackMsg}`);
+      }
     }
   }
 
