@@ -128,33 +128,74 @@ export default function Editor({ mode, initial }: Props) {
     };
   }, []);
 
-  // Keep the markdown editor and rendered preview scrolling together.
+  // Keep the markdown editor and rendered preview scrolling together by matching
+  // the source line at the top of each pane, with percentage sync as fallback.
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     let frame = 0;
 
-    function syncScroll(source: HTMLElement, target: HTMLElement) {
-      if (syncingScrollRef.current) return;
+    function markers(preview: HTMLElement) {
+      return Array.from(preview.querySelectorAll<HTMLElement>("[data-source-line]"))
+        .map((el) => ({ el, line: Number(el.dataset.sourceLine) }))
+        .filter((m) => Number.isFinite(m.line));
+    }
+
+    function fallbackSync(source: HTMLElement, target: HTMLElement) {
       const sourceMax = source.scrollHeight - source.clientHeight;
       const targetMax = target.scrollHeight - target.clientHeight;
       if (sourceMax <= 0 || targetMax <= 0) return;
-      syncingScrollRef.current = true;
       target.scrollTop = (source.scrollTop / sourceMax) * targetMax;
+    }
+
+    function syncPreviewToLine(preview: HTMLElement, line: number) {
+      const all = markers(preview);
+      let current = all[0];
+      for (const marker of all) {
+        if (marker.line > line) break;
+        current = marker;
+      }
+      if (!current) return false;
+      preview.scrollTop = current.el.offsetTop - preview.offsetTop;
+      return true;
+    }
+
+    function syncEditorToPreview(preview: HTMLElement, view: EditorView) {
+      const paneTop = preview.getBoundingClientRect().top;
+      const current = markers(preview).reduce<{ el: HTMLElement; line: number } | null>((best, marker) => {
+        if (marker.el.getBoundingClientRect().top <= paneTop + 8) return marker;
+        return best;
+      }, null);
+      if (!current) return false;
+      const line = view.state.doc.line(Math.min(current.line, view.state.doc.lines));
+      view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: "start" }) });
+      return true;
+    }
+
+    function withScrollLock(fn: () => void) {
+      if (syncingScrollRef.current) return;
+      syncingScrollRef.current = true;
+      fn();
       window.requestAnimationFrame(() => {
         syncingScrollRef.current = false;
       });
     }
 
     function connect() {
-      const editorScroller = editorRef.current?.scrollDOM;
+      const view = editorRef.current;
+      const editorScroller = view?.scrollDOM;
       const preview = previewRef.current;
-      if (!editorScroller || !preview) {
+      if (!view || !editorScroller || !preview) {
         frame = window.requestAnimationFrame(connect);
         return;
       }
 
-      const onEditorScroll = () => syncScroll(editorScroller, preview);
-      const onPreviewScroll = () => syncScroll(preview, editorScroller);
+      const onEditorScroll = () => withScrollLock(() => {
+        const line = view.state.doc.lineAt(view.lineBlockAtHeight(editorScroller.scrollTop).from).number;
+        if (!syncPreviewToLine(preview, line)) fallbackSync(editorScroller, preview);
+      });
+      const onPreviewScroll = () => withScrollLock(() => {
+        if (!syncEditorToPreview(preview, view)) fallbackSync(preview, editorScroller);
+      });
       editorScroller.addEventListener("scroll", onEditorScroll, { passive: true });
       preview.addEventListener("scroll", onPreviewScroll, { passive: true });
       cleanup = () => {
@@ -168,7 +209,7 @@ export default function Editor({ mode, initial }: Props) {
       window.cancelAnimationFrame(frame);
       cleanup?.();
     };
-  }, []);
+  }, [body]);
 
   // Cmd/Ctrl-S to save
   useEffect(() => {
@@ -285,6 +326,11 @@ export default function Editor({ mode, initial }: Props) {
     if (e.dataTransfer.files?.length) await handleFiles(e.dataTransfer.files);
   }
 
+  function sourceLineProps(node: unknown) {
+    const line = (node as { position?: { start?: { line?: number } } })?.position?.start?.line;
+    return typeof line === "number" ? { "data-source-line": line } : {};
+  }
+
   const extensions = useMemo(() => [markdown(), EditorView.lineWrapping], []);
 
   return (
@@ -335,7 +381,15 @@ export default function Editor({ mode, initial }: Props) {
             remarkPlugins={[remarkGfm, remarkBreaks]}
             rehypePlugins={[rehypeRaw]}
             components={{
-              p({ children }) {
+              h1({ node, children }) { return <h1 {...sourceLineProps(node)}>{children}</h1>; },
+              h2({ node, children }) { return <h2 {...sourceLineProps(node)}>{children}</h2>; },
+              h3({ node, children }) { return <h3 {...sourceLineProps(node)}>{children}</h3>; },
+              h4({ node, children }) { return <h4 {...sourceLineProps(node)}>{children}</h4>; },
+              li({ node, children }) { return <li {...sourceLineProps(node)}>{children}</li>; },
+              blockquote({ node, children }) { return <blockquote {...sourceLineProps(node)}>{children}</blockquote>; },
+              pre({ node, children }) { return <pre {...sourceLineProps(node)}>{children}</pre>; },
+              p({ node, children }) {
+                const lineProps = sourceLineProps(node);
                 const childArray = Array.isArray(children) ? children : [children];
                 const only = childArray.length === 1 ? childArray[0] : null;
                 if (
@@ -347,10 +401,10 @@ export default function Editor({ mode, initial }: Props) {
                 ) {
                   const props = only.props as { src?: string; alt?: string };
                   if (props.alt) {
-                    return <figure><img src={props.src} alt={props.alt} /><figcaption>{props.alt}</figcaption></figure>;
+                    return <figure {...lineProps}><img src={props.src} alt={props.alt} /><figcaption>{props.alt}</figcaption></figure>;
                   }
                 }
-                return <p>{children}</p>;
+                return <p {...lineProps}>{children}</p>;
               },
             }}
           >
