@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
-import sharp from "sharp";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -56,6 +55,11 @@ export async function saveUpload(file: File): Promise<{ url: string; relPath: st
 
   if (mime === "image/heic" || mime === "image/heif") {
     try {
+      // iPhone HEIC/Live Photo files can exceed libheif's conservative default
+      // reference limits. This app only accepts authenticated uploads, so allow
+      // libheif to process larger-but-legitimate personal media files.
+      process.env.LIBHEIF_SECURITY_LIMITS = process.env.LIBHEIF_SECURITY_LIMITS || "off";
+      const { default: sharp } = await import("sharp");
       const image = sharp(buf, { animated: true });
       const meta = await image.metadata();
       const jpg = await sharp(buf, { page: 0 }).rotate().jpeg({ quality: 88 }).toBuffer();

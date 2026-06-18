@@ -118,6 +118,7 @@ jobs:
             "PUBLIC_URL=https://4629169.xyz",
             "BLOG_CONTENT_DIR=$contentDir",
             "UPLOADS_DIR=C:\apps\blog-media\uploads",
+            "LIBHEIF_SECURITY_LIMITS=off",
             "BLOG_GIT_PAT=$($env:BLOG_GIT_PAT)",
             "GIT_AUTHOR_NAME=Blog Bot",
             "GIT_AUTHOR_EMAIL=blog-bot@4629169.xyz",
