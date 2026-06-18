@@ -21,3 +21,4 @@ _I am going to try to put media from the last days since the last blog post here
 ![Jen and I went golfing for the first time as a couple on Saturday. We played best ball off the tee, and every other shot was 1v1. We both shot like 2-3 over par at [Katchiwano](http://www.katchiwano.ca/) but had more fun than all the other white guys imo](/blog/uploads/2026/06/hsETwrIB5T.jpg)
 
 
+![](/blog/uploads/2026/06/FskQhTzpl-.jpg "live:/blog/uploads/2026/06/FskQhTzpl-.gif")
