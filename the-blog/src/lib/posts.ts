@@ -146,6 +146,14 @@ export async function getPostBySlug(slug: string, opts: { includeUntracked?: boo
   };
 }
 
+function escapeHtmlAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 async function inlineMarkdown(md: string): Promise<string> {
   const file = await remark()
     .use(remarkGfm)
@@ -168,12 +176,11 @@ async function expandCaptionImages(md: string): Promise<string> {
     const caption = match[1] || "";
     const src = match[2] || "";
     const liveSrc = match[3] || "";
-    if (!caption.trim() && !liveSrc) continue;
     const captionHtml = caption.trim() ? await inlineMarkdown(caption) : "";
     const altText = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
     const media = liveSrc
-      ? `<span class="live-photo"><img src="${src}" data-live-src="${liveSrc}" alt="${altText}"><span class="live-badge">▶</span></span>`
-      : `<img src="${src}" alt="${altText}">`;
+      ? `<span class="live-photo"><img src="${escapeHtmlAttr(src)}" data-live-src="${escapeHtmlAttr(liveSrc)}" alt="${escapeHtmlAttr(altText)}"><span class="live-badge">▶</span></span>`
+      : `<img src="${escapeHtmlAttr(src)}" alt="${escapeHtmlAttr(altText)}">`;
     const figure = `<figure>\n${media}\n${captionHtml ? `<figcaption>${captionHtml}</figcaption>\n` : ""}</figure>`;
     out = out.slice(0, match.index) + figure + out.slice((match.index || 0) + match[0].length);
   }

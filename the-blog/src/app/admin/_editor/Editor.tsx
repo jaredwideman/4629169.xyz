@@ -49,12 +49,11 @@ function inlineCaptionMarkdown(s: string) {
 }
 
 function expandCaptionImages(md: string) {
-  return md.replace(/^!\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*$/gm, (match, caption: string, src: string, liveSrc?: string) => {
-    if (!caption.trim() && !liveSrc) return match;
+  return md.replace(/^!\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*$/gm, (_match, caption: string, src: string, liveSrc?: string) => {
     const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
     const img = liveSrc
-      ? `<span class="live-photo"><img src="${src}" data-live-src="${liveSrc}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
-      : `<img src="${src}" alt="${escapeHtml(alt)}" />`;
+      ? `<span class="live-photo"><img src="${escapeHtml(src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
+      : `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />`;
     const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
     return `<figure>\n${img}${captionHtml}\n</figure>`;
   });
