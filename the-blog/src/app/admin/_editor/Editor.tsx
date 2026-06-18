@@ -161,7 +161,7 @@ export default function Editor({ mode, initial }: Props) {
     // Leave it blank for no caption:
     //   ![](/path/to/image.jpg)
     return isVideo
-      ? `\n<video controls src="${url}"></video>\n`
+      ? `\n<video src="${url}" autoplay muted loop playsinline data-auto-video></video>\n`
       : `\n![](${url})\n`;
   }
 
