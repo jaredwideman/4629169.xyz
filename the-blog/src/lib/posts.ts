@@ -146,26 +146,44 @@ export async function getPostBySlug(slug: string, opts: { includeUntracked?: boo
   };
 }
 
-function captionMarkdownImages(html: string): string {
-  // Convention: markdown image alt text is also the caption.
-  // ![caption](/image.jpg) => <figure><img ...><figcaption>caption</figcaption></figure>
-  // ![](/image.jpg) stays as a plain image.
-  return html.replace(
-    /<p><img src="([^"]+)" alt="([^"]+)"\s*><\/p>/g,
-    (_match, src: string, alt: string) => {
-      if (!alt.trim()) return `<p><img src="${src}" alt=""></p>`;
-      return `<figure><img src="${src}" alt="${alt}"><figcaption>${alt}</figcaption></figure>`;
-    },
-  );
-}
-
-export async function renderMarkdown(md: string): Promise<string> {
+async function inlineMarkdown(md: string): Promise<string> {
   const file = await remark()
     .use(remarkGfm)
     .use(remarkBreaks)
     .use(remarkHtml, { sanitize: false })
     .process(md);
-  return captionMarkdownImages(String(file));
+  return String(file).trim().replace(/^<p>/, "").replace(/<\/p>$/, "");
+}
+
+async function expandCaptionImages(md: string): Promise<string> {
+  // Convention: markdown image alt text is also the caption.
+  // ![caption with [links](https://example.com)](/image.jpg)
+  // becomes a semantic figure with markdown-rendered caption HTML.
+  // ![](/image.jpg) stays as a plain markdown image.
+  const re = /^!\[(.*)\]\(([^\s)]+)\)\s*$/gm;
+  const matches = Array.from(md.matchAll(re));
+  let out = md;
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const match = matches[i];
+    const caption = match[1] || "";
+    const src = match[2] || "";
+    if (!caption.trim()) continue;
+    const captionHtml = await inlineMarkdown(caption);
+    const altText = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
+    const figure = `<figure>\n<img src="${src}" alt="${altText}">\n<figcaption>${captionHtml}</figcaption>\n</figure>`;
+    out = out.slice(0, match.index) + figure + out.slice((match.index || 0) + match[0].length);
+  }
+  return out;
+}
+
+export async function renderMarkdown(md: string): Promise<string> {
+  const expanded = await expandCaptionImages(md);
+  const file = await remark()
+    .use(remarkGfm)
+    .use(remarkBreaks)
+    .use(remarkHtml, { sanitize: false })
+    .process(expanded);
+  return String(file);
 }
 
 export type SaveInput = {

@@ -36,6 +36,26 @@ function slugify(s: string) {
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
+function escapeHtml(s: string) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function inlineCaptionMarkdown(s: string) {
+  return escapeHtml(s).replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+}
+
+function expandCaptionImages(md: string) {
+  return md.replace(/^!\[(.*)\]\(([^\s)]+)\)\s*$/gm, (match, caption: string, src: string) => {
+    if (!caption.trim()) return match;
+    const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
+    return `<figure>\n<img src="${src}" alt="${escapeHtml(alt)}" />\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>\n</figure>`;
+  });
+}
+
 export default function Editor({ mode, initial }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState(initial.title);
@@ -224,7 +244,7 @@ export default function Editor({ mode, initial }: Props) {
               },
             }}
           >
-            {body}
+            {expandCaptionImages(body)}
           </ReactMarkdown>
         </div>
       </div>
