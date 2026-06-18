@@ -21,7 +21,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </>
       )}
       <p style={{ marginTop: 24, fontSize: 12 }}>
-        <Link href={`${base}/`}>← back to blog</Link>
+        <Link href="/">← back to blog</Link>
       </p>
     </div>
   );

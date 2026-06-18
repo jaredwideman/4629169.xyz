@@ -7,14 +7,13 @@ export const dynamic = "force-dynamic";
 export default async function BlogIndex() {
   const session = await getSession();
   const posts = await listPosts({ includeDrafts: !!session });
-  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
   return (
     <div className="container">
       <header className="site">
-        <h1><Link href={`${base}/`}>Blog</Link></h1>
+        <h1><Link href="/">Blog</Link></h1>
         <nav>
           <a href="/">← 4629169.xyz</a>
-          {session ? <Link href={`${base}/admin`}>admin</Link> : null}
+          {session ? <Link href="/admin">admin</Link> : null}
         </nav>
       </header>
       {posts.length === 0 ? (
@@ -24,7 +23,7 @@ export default async function BlogIndex() {
           {posts.map((p) => (
             <li key={p.filename}>
               <h2>
-                <Link href={`${base}/${p.slug}`}>{p.title}</Link>
+                <Link href={`/${p.slug}`}>{p.title}</Link>
                 {p.draft ? <span className="draft-badge">DRAFT</span> : null}
               </h2>
               <div className="date">{p.date}</div>

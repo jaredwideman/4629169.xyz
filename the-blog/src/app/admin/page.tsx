@@ -16,7 +16,7 @@ export default async function AdminHome() {
         <strong>Admin</strong>
         <span className="status">signed in as {session.email}</span>
         <span className="grow" />
-        <Link href={`${base}/admin/new`}><button className="primary">New post</button></Link>
+        <Link href="/admin/new"><button className="primary">New post</button></Link>
         <form action={`${base}/api/auth/logout`} method="post" style={{ display: "inline" }}>
           <button>Sign out</button>
         </form>
@@ -28,7 +28,7 @@ export default async function AdminHome() {
         {posts.map((p) => (
           <li key={p.filename}>
             <h2>
-              <Link href={`${base}/admin/edit/${p.slug}`}>{p.title}</Link>
+              <Link href={`/admin/edit/${p.slug}`}>{p.title}</Link>
               {p.draft ? <span className="draft-badge">DRAFT</span> : null}
             </h2>
             <div className="date">{p.date} · <code style={{ fontSize: 12 }}>{p.filename}</code></div>

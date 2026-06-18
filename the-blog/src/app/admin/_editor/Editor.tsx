@@ -88,9 +88,9 @@ export default function Editor({ mode, initial }: Props) {
     setStatus(json.gitWarning ? `Saved (git: ${json.gitWarning})` : (publish ? "Published ✓" : "Saved ✓"));
     if (publish) setDraft(false);
     if (mode === "new") {
-      router.replace(`${BASE}/admin/edit/${slug}`);
+      router.replace(`/admin/edit/${slug}`);
     } else if (slug !== initial.slug || date !== initial.date) {
-      router.replace(`${BASE}/admin/edit/${slug}`);
+      router.replace(`/admin/edit/${slug}`);
     } else {
       router.refresh();
     }
