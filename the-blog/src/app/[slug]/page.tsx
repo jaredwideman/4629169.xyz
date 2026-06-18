@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPostBySlug } from "@/lib/posts";
 import { getSession } from "@/lib/auth";
 import LivePhotoScript from "../LivePhotoScript";
+import AutoplayToggle from "../AutoplayToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function PostPage({ params }: Props) {
       <header className="site">
         <h1><Link href="/">Blog</Link></h1>
         <nav>
+          <AutoplayToggle />
           <Link href="/">all posts</Link>
           {session ? <Link href={`/admin/edit/${post.slug}`}>edit</Link> : null}
         </nav>

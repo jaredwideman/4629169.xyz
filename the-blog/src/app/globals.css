@@ -32,6 +32,10 @@ header.site {
 
 header.site h1 { font-size: 22px; margin: 0; }
 header.site nav a { margin-left: 16px; font-size: 14px; color: var(--muted); }
+header.site nav .autoplay-toggle { margin-left: 16px; border: 0; background: transparent; padding: 0; font: inherit; font-size: 14px; cursor: pointer; }
+header.site nav .autoplay-toggle.is-on { color: #168a2f; }
+header.site nav .autoplay-toggle.is-off { color: #c01818; }
+header.site nav .autoplay-toggle:hover { text-decoration: underline; }
 
 article.post h1 { font-size: 32px; line-height: 1.2; margin: 0 0 8px; }
 article.post .date { color: var(--muted); font-size: 13px; margin-bottom: 32px; }

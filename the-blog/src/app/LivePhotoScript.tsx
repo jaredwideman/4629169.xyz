@@ -1,11 +1,41 @@
 "use client";
 
 import { useEffect } from "react";
+import { getAutoplaySetting } from "./AutoplayToggle";
 
 export default function LivePhotoScript() {
   useEffect(() => {
+    let autoplayEnabled = getAutoplaySetting();
+
+    function videoIsInSafeViewport(video: HTMLVideoElement) {
+      const topSafe = window.innerHeight * 0.08;
+      const bottomSafe = window.innerHeight * 0.92;
+      const rect = video.getBoundingClientRect();
+      const safeHeight = bottomSafe - topSafe;
+      const center = rect.top + rect.height / 2;
+      const fullyInsideSafeArea = rect.top >= topSafe && rect.bottom <= bottomSafe;
+      const tallButCentered = rect.height > safeHeight && center >= topSafe && center <= bottomSafe;
+      const visibleAtAll = rect.bottom > 0 && rect.top < window.innerHeight;
+      return visibleAtAll && (fullyInsideSafeArea || tallButCentered);
+    }
+
     function onClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
+
+      const video = target?.closest?.("article.post video") as HTMLVideoElement | null;
+      if (video) {
+        if (video.paused) {
+          if (videoIsInSafeViewport(video)) {
+            video.dataset.userPaused = "false";
+            video.play().catch(() => {});
+          }
+        } else {
+          video.dataset.userPaused = "true";
+          video.pause();
+        }
+        return;
+      }
+
       const wrapper = target?.closest?.(".live-photo") as HTMLElement | null;
       if (!wrapper) return;
       const img = wrapper.querySelector("img[data-live-src]") as HTMLImageElement | null;
@@ -26,7 +56,7 @@ export default function LivePhotoScript() {
         video.removeAttribute("controls");
         video.muted = true;
         video.loop = true;
-        video.autoplay = true;
+        video.autoplay = autoplayEnabled;
         video.playsInline = true;
       }
       return videos;
@@ -35,16 +65,10 @@ export default function LivePhotoScript() {
     let videos = setupVideos();
 
     function updateVideoPlayback() {
-      const topSafe = window.innerHeight * 0.08;
-      const bottomSafe = window.innerHeight * 0.92;
       for (const video of videos) {
-        const rect = video.getBoundingClientRect();
-        const safeHeight = bottomSafe - topSafe;
-        const center = rect.top + rect.height / 2;
-        const fullyInsideSafeArea = rect.top >= topSafe && rect.bottom <= bottomSafe;
-        const tallButCentered = rect.height > safeHeight && center >= topSafe && center <= bottomSafe;
-        const visibleAtAll = rect.bottom > 0 && rect.top < window.innerHeight;
-        const shouldPlay = visibleAtAll && (fullyInsideSafeArea || tallButCentered);
+        const safe = videoIsInSafeViewport(video);
+        const userPaused = video.dataset.userPaused === "true";
+        const shouldPlay = autoplayEnabled && safe && !userPaused;
         if (shouldPlay) {
           if (video.paused) video.play().catch(() => {});
         } else if (!video.paused) {
@@ -62,12 +86,22 @@ export default function LivePhotoScript() {
       });
     }
 
+    function onAutoplayChange(e: Event) {
+      const custom = e as CustomEvent<{ enabled: boolean }>;
+      autoplayEnabled = custom.detail.enabled;
+      for (const video of videos) {
+        video.autoplay = autoplayEnabled;
+        if (autoplayEnabled) video.dataset.userPaused = "false";
+      }
+      updateVideoPlayback();
+    }
+
     document.addEventListener("click", onClick);
     window.addEventListener("scroll", scheduleVideoUpdate, { passive: true });
     window.addEventListener("resize", scheduleVideoUpdate);
+    window.addEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
     updateVideoPlayback();
 
-    // Re-scan shortly after hydration in case streamed HTML/media settles late.
     const rescan = window.setTimeout(() => {
       videos = setupVideos();
       updateVideoPlayback();
@@ -77,6 +111,7 @@ export default function LivePhotoScript() {
       document.removeEventListener("click", onClick);
       window.removeEventListener("scroll", scheduleVideoUpdate);
       window.removeEventListener("resize", scheduleVideoUpdate);
+      window.removeEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
       window.clearTimeout(rescan);
       if (raf) window.cancelAnimationFrame(raf);
     };
