@@ -87,8 +87,8 @@ jobs:
           git config user.name "Blog Bot"
           git config user.email "blog-bot@4629169.xyz"
           git remote set-url origin "https://github.com/$repo.git"
-          git fetch origin main
-          git reset --hard origin/main
+          git checkout main
+          git pull --rebase --autostash origin main
 
       - name: Ensure ImageMagick for HEIC conversion
         shell: powershell

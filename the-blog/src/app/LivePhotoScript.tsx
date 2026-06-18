@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { getAutoplaySetting, getMutedSetting } from "./AutoplayToggle";
+import { getAutoplaySetting, getMutedSetting, setMutedSetting } from "./AutoplayToggle";
 
 export default function LivePhotoScript() {
   useEffect(() => {
@@ -51,19 +51,44 @@ export default function LivePhotoScript() {
       wrapper.classList.toggle("is-live", !isLive);
     }
 
+    function forceMutedForAutoplay() {
+      if (mutedEnabled) return;
+      mutedEnabled = true;
+      setMutedSetting(true);
+      for (const video of videos) video.muted = true;
+    }
+
+    function autoplayVideo(video: HTMLVideoElement) {
+      video.play().catch(() => {
+        // Browsers reject unmuted autoplay. If autoplay is enabled, prefer
+        // reliable autoplay and flip the muted control back on.
+        if (autoplayEnabled && !video.muted) {
+          forceMutedForAutoplay();
+          video.play().catch(() => {});
+        }
+      });
+    }
+
     function setupVideos() {
-      const videos = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
-      for (const video of videos) {
+      const found = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
+      for (const video of found) {
         video.removeAttribute("controls");
+        video.defaultMuted = mutedEnabled;
         video.muted = mutedEnabled;
         video.loop = true;
         video.autoplay = autoplayEnabled;
         video.playsInline = true;
+        if (video.dataset.videoSetup !== "true") {
+          video.dataset.videoSetup = "true";
+          video.addEventListener("loadedmetadata", scheduleVideoUpdate);
+          video.addEventListener("loadeddata", scheduleVideoUpdate);
+          video.addEventListener("canplay", scheduleVideoUpdate);
+        }
       }
-      return videos;
+      return found;
     }
 
-    let videos = setupVideos();
+    let videos: HTMLVideoElement[] = [];
 
     function updateVideoPlayback() {
       for (const video of videos) {
@@ -71,7 +96,7 @@ export default function LivePhotoScript() {
         const userPaused = video.dataset.userPaused === "true";
         const shouldPlay = autoplayEnabled && safe && !userPaused;
         if (shouldPlay) {
-          if (video.paused) video.play().catch(() => {});
+          if (video.paused) autoplayVideo(video);
         } else if (!video.paused) {
           video.pause();
         }
@@ -100,8 +125,14 @@ export default function LivePhotoScript() {
     function onMutedChange(e: Event) {
       const custom = e as CustomEvent<{ muted: boolean }>;
       mutedEnabled = custom.detail.muted;
-      for (const video of videos) video.muted = mutedEnabled;
+      for (const video of videos) {
+        video.defaultMuted = mutedEnabled;
+        video.muted = mutedEnabled;
+      }
+      updateVideoPlayback();
     }
+
+    videos = setupVideos();
 
     document.addEventListener("click", onClick);
     window.addEventListener("scroll", scheduleVideoUpdate, { passive: true });
@@ -129,6 +160,12 @@ export default function LivePhotoScript() {
       window.removeEventListener("blog-video-muted-change", onMutedChange as EventListener);
       window.clearTimeout(rescan);
       observer.disconnect();
+      for (const video of videos) {
+        video.removeEventListener("loadedmetadata", scheduleVideoUpdate);
+        video.removeEventListener("loadeddata", scheduleVideoUpdate);
+        video.removeEventListener("canplay", scheduleVideoUpdate);
+        delete video.dataset.videoSetup;
+      }
       if (raf) window.cancelAnimationFrame(raf);
     };
   }, []);

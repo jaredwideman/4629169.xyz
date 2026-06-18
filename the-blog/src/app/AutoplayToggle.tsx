@@ -15,6 +15,12 @@ export function getMutedSetting() {
   return window.localStorage.getItem(MUTED_KEY) !== "false";
 }
 
+export function setMutedSetting(muted: boolean) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MUTED_KEY, String(muted));
+  window.dispatchEvent(new CustomEvent("blog-video-muted-change", { detail: { muted } }));
+}
+
 export default function AutoplayToggle() {
   const [enabled, setEnabled] = useState(true);
 
@@ -47,13 +53,18 @@ export function MuteToggle() {
 
   useEffect(() => {
     setMuted(getMutedSetting());
+    function onMutedChange(e: Event) {
+      const custom = e as CustomEvent<{ muted: boolean }>;
+      setMuted(custom.detail.muted);
+    }
+    window.addEventListener("blog-video-muted-change", onMutedChange as EventListener);
+    return () => window.removeEventListener("blog-video-muted-change", onMutedChange as EventListener);
   }, []);
 
   function toggle() {
     const next = !muted;
     setMuted(next);
-    window.localStorage.setItem(MUTED_KEY, String(next));
-    window.dispatchEvent(new CustomEvent("blog-video-muted-change", { detail: { muted: next } }));
+    setMutedSetting(next);
   }
 
   return (
