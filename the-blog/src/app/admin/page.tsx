@@ -15,9 +15,6 @@ export default async function AdminHome({ searchParams }: Props) {
   const requestedMonth = params.month && isValidMonth(params.month) ? params.month : undefined;
   const selectedMonth = requestedMonth || months[0]?.month || currentMonth();
   const selected = await getTimelineMonth(selectedMonth);
-  const monthSummaries = months.some((m) => m.month === selected.month)
-    ? months.map((m) => ({ month: m.month, filename: m.filename, tracked: m.tracked }))
-    : [{ month: selected.month, filename: selected.filename, tracked: selected.tracked }, ...months.map((m) => ({ month: m.month, filename: m.filename, tracked: m.tracked }))];
 
-  return <TimelineWorkbench initialMonth={selected.month} initialBody={selected.body} months={monthSummaries} />;
+  return <TimelineWorkbench initialMonth={selected.month} initialBody={selected.body} />;
 }

@@ -10,11 +10,9 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeRaw from "rehype-raw";
 
-type TimelineMonthSummary = { month: string; filename: string; tracked: boolean };
 type Props = {
   initialMonth: string;
   initialBody: string;
-  months: TimelineMonthSummary[];
 };
 
 type ValidationMessage = { line: number; level: "error" | "warning"; message: string };
@@ -167,9 +165,9 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function TimelineWorkbench({ initialMonth, initialBody, months }: Props) {
+export default function TimelineWorkbench({ initialMonth, initialBody }: Props) {
   const router = useRouter();
-  const [month, setMonth] = useState(initialMonth);
+  const [month] = useState(initialMonth);
   const [body, setBody] = useState(initialBody);
   const [status, setStatus] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -196,12 +194,6 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [hasUnsavedChanges]);
-
-  function changeMonth(nextMonth: string) {
-    if (!nextMonth || nextMonth === month) return;
-    if (hasUnsavedChanges && !confirm("You have unsaved changes. Switch months and discard them?")) return;
-    router.push(`/admin?month=${nextMonth}`);
-  }
 
   async function save({ publish }: { publish: boolean }) {
     if (!/^\d{4}-\d{2}$/.test(month)) { setStatus("Invalid month"); return; }
@@ -276,10 +268,6 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
     if (e.dataTransfer.files?.length) await handleFiles(e.dataTransfer.files);
   }
 
-  function normalizeDocument() {
-    setBody(formatTimelineSource(body));
-  }
-
   const previewBody = useMemo(() => formatTimelineSource(body), [body]);
 
   useEffect(() => {
@@ -340,15 +328,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
     <div className="admin-shell timeline-workbench">
       <div className="admin-bar">
         <strong>Timeline</strong>
-        <a href="/" style={{ fontSize: 13 }}>public</a>
-        <form action={`${BASE}/api/auth/logout`} method="post" style={{ display: "inline" }}><button>Sign out</button></form>
-        <select value={month} onChange={(e) => changeMonth(e.target.value)}>
-          {months.map((m) => <option key={m.month} value={m.month}>{m.month}{m.tracked ? "" : " · local"}</option>)}
-          {!months.some((m) => m.month === month) ? <option value={month}>{month} · new</option> : null}
-        </select>
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-        <button onClick={() => router.push(`/admin?month=${todayISO().slice(0, 7)}`)}>This month</button>
-        <button onClick={normalizeDocument}>Normalize + sort</button>
+        <span className="status">{month}</span>
         <span className="grow" />
         <span className="status">{status || (hasUnsavedChanges ? "Unsaved changes" : "")}</span>
         <button onClick={() => save({ publish: false })}>Save</button>
