@@ -169,26 +169,45 @@ type MediaRow = { indexes: number[]; aspectSum: number };
 
 function buildSmartRows(aspects: number[]): MediaRow[] {
   if (aspects.length <= 1) return [{ indexes: aspects.map((_a, i) => i), aspectSum: aspects.reduce((a, b) => a + b, 0) || 1 }];
-  const rows: MediaRow[] = [];
-  let indexes: number[] = [];
-  let aspectSum = 0;
-  const targetAspect = 2.8;
+
+  const targetAspect = 2.7;
   const maxPerRow = 3;
+  const sums = aspects.reduce<number[]>((acc, aspect) => [...acc, acc[acc.length - 1] + aspect], [0]);
+  const memo = new Map<number, { cost: number; rows: MediaRow[] }>();
 
-  aspects.forEach((aspect, index) => {
-    indexes.push(index);
-    aspectSum += aspect;
-    const hitTarget = aspectSum >= targetAspect;
-    const hitMax = indexes.length >= maxPerRow;
-    const isLast = index === aspects.length - 1;
-    if (hitTarget || hitMax || isLast) {
-      rows.push({ indexes, aspectSum });
-      indexes = [];
-      aspectSum = 0;
+  function rowAspect(from: number, to: number) {
+    return sums[to] - sums[from];
+  }
+
+  function bestFrom(index: number): { cost: number; rows: MediaRow[] } {
+    if (index >= aspects.length) return { cost: 0, rows: [] };
+    const cached = memo.get(index);
+    if (cached) return cached;
+
+    let best: { cost: number; rows: MediaRow[] } | null = null;
+    const remaining = aspects.length - index;
+    const maxCount = Math.min(maxPerRow, remaining);
+    for (let count = 1; count <= maxCount; count++) {
+      // Avoid layouts like 3 + 1 when 2 + 2 would be much more balanced.
+      if (remaining > 1 && remaining - count === 1) continue;
+      const aspectSum = rowAspect(index, index + count);
+      const continuation = bestFrom(index + count);
+      const singletonPenalty = count === 1 && aspects.length > 1 ? 1.5 : 0;
+      const cost = Math.abs(aspectSum - targetAspect) + singletonPenalty + continuation.cost;
+      if (!best || cost < best.cost) {
+        best = {
+          cost,
+          rows: [{ indexes: Array.from({ length: count }, (_v, i) => index + i), aspectSum }, ...continuation.rows],
+        };
+      }
     }
-  });
 
-  return rows;
+    const result = best || { cost: 0, rows: [{ indexes: [index], aspectSum: aspects[index] }] };
+    memo.set(index, result);
+    return result;
+  }
+
+  return bestFrom(0).rows;
 }
 
 function TimelineMediaGrid({ media }: { media: CardMedia[] }) {
