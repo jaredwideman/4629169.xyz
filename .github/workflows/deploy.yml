@@ -3,6 +3,7 @@ name: Deploy to server
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   deploy:
@@ -15,30 +16,54 @@ jobs:
         run: |
           $source = "${{ github.workspace }}\public\*"
           $dest = "C:\nginx\html"
-
-          # Clean old files (except .well-known)
           Get-ChildItem -Path $dest -Exclude '.well-known' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-
-          # Copy new files
           Copy-Item -Path $source -Destination $dest -Recurse -Force
-
           Write-Host "Deployed static site to $dest"
 
-      - name: Configure nginx proxy for The Buckhorner
+      - name: Remove The Buckhorner (idempotent cleanup)
+        shell: powershell
+        run: |
+          $taskName = "The Buckhorner"
+          if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+            Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+            Write-Host "Removed scheduled task: $taskName"
+          }
+          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
+            $_.CommandLine -like "*the-buckhorner*"
+          } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+          $appDir = "C:\apps\the-buckhorner"
+          if (Test-Path $appDir) {
+            Remove-Item -Path $appDir -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "Removed $appDir"
+          }
+
+      - name: Configure nginx proxy for /blog/
         shell: powershell
         run: |
           $nginxConf = "C:\nginx\conf\nginx.conf"
           $content = Get-Content $nginxConf -Raw
+          $changed = $false
 
-          if ($content -notmatch "the-buckhorner") {
-            $proxyBlock = "`n            # the-buckhorner proxy`n"
-            $proxyBlock += "            location /the-buckhorner/ {`n"
+          # Remove old /the-buckhorner/ proxy blocks if present.
+          $content2 = [regex]::Replace($content, '(?ms)\s*#\s*the-buckhorner proxy\s*\r?\n\s*location\s+/the-buckhorner/\s*\{[^}]*\}\s*', "`n")
+          $content2 = [regex]::Replace($content2, '(?ms)\s*location\s+/the-buckhorner/\s*\{[^}]*\}\s*', "`n")
+          if ($content2 -ne $content) { $content = $content2; $changed = $true; Write-Host "Removed old /the-buckhorner/ nginx block" }
+
+          if ($content -notmatch "location\s+/blog/") {
+            $proxyBlock = "`n            # blog proxy`n"
+            $proxyBlock += "            location = /blog { return 301 /blog/; }`n"
+            $proxyBlock += "            location /blog/ {`n"
             $proxyBlock += "                proxy_pass http://127.0.0.1:3001;`n"
             $proxyBlock += "                proxy_http_version 1.1;`n"
             $proxyBlock += '                proxy_set_header Upgrade $http_upgrade;' + "`n"
             $proxyBlock += "                proxy_set_header Connection 'upgrade';`n"
             $proxyBlock += '                proxy_set_header Host $host;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Real-IP $remote_addr;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Forwarded-Proto $scheme;' + "`n"
             $proxyBlock += '                proxy_cache_bypass $http_upgrade;' + "`n"
+            $proxyBlock += "                client_max_body_size 100m;`n"
             $proxyBlock += "            }`n"
 
             if ($content -match "(?s)(location\s+/jellyfin/.+?\})") {
@@ -46,83 +71,89 @@ jobs:
             } else {
               $content = $content -replace '(\}\s*\}\s*)$', ($proxyBlock + '$1')
             }
+            $changed = $true
+            Write-Host "Added /blog/ proxy block"
+          }
 
+          if ($changed) {
             Set-Content -Path $nginxConf -Value $content -NoNewline
             & C:\nginx\nginx.exe -p C:\nginx -s reload
-            Write-Host "Added nginx proxy rule for /the-buckhorner/ and reloaded"
+            Write-Host "nginx reloaded"
           } else {
-            Write-Host "nginx proxy rule already exists, skipping"
+            Write-Host "nginx config already up to date"
           }
 
-      - name: Deploy The Buckhorner
+      - name: Provision blog-content checkout
         shell: powershell
         run: |
-          $appDir = "C:\apps\the-buckhorner"
-          $source = "${{ github.workspace }}\the-buckhorner"
-          $taskName = "The Buckhorner"
-
-          # Create app directory if it doesn't exist
-          if (-not (Test-Path $appDir)) {
-            New-Item -ItemType Directory -Path $appDir -Force
+          $contentDir = "C:\apps\blog-content"
+          $repo = "${{ github.repository }}"
+          if (-not (Test-Path $contentDir)) {
+            git clone "https://github.com/$repo.git" $contentDir
           }
+          Set-Location $contentDir
+          git config user.name "Blog Bot"
+          git config user.email "blog-bot@4629169.xyz"
+          git remote set-url origin "https://github.com/$repo.git"
+          git fetch origin main
+          git reset --hard origin/main
 
-          # Sync source files (preserve node_modules, .next build cache, .data, .env.local)
-          robocopy $source $appDir /MIR /XD node_modules .next .data .git /XF .env.local /NFL /NDL /NJH /NJS
-          # robocopy returns non-zero for successful copies, so don't fail on it
+      - name: Deploy the-blog
+        shell: powershell
+        env:
+          ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          BLOG_GIT_PAT: ${{ secrets.BLOG_GIT_PAT }}
+        run: |
+          $appDir = "C:\apps\the-blog"
+          $source = "${{ github.workspace }}\the-blog"
+          $taskName = "The Blog"
+          $contentDir = "C:\apps\blog-content"
+
+          if (-not (Test-Path $appDir)) { New-Item -ItemType Directory -Path $appDir -Force | Out-Null }
+
+          robocopy $source $appDir /MIR /XD node_modules .next .git public\uploads /XF .env.local /NFL /NDL /NJH /NJS
           if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
           $LASTEXITCODE = 0
 
-          # Install dependencies and build
+          $envLines = @(
+            "ALLOWED_EMAILS=$($env:ALLOWED_EMAILS)",
+            "SESSION_SECRET=$($env:SESSION_SECRET)",
+            "RESEND_API_KEY=$($env:RESEND_API_KEY)",
+            "MAIL_FROM=$($env:MAIL_FROM)",
+            "PUBLIC_URL=https://4629169.xyz",
+            "BLOG_CONTENT_DIR=$contentDir",
+            "BLOG_GIT_PAT=$($env:BLOG_GIT_PAT)",
+            "GIT_AUTHOR_NAME=Blog Bot",
+            "GIT_AUTHOR_EMAIL=blog-bot@4629169.xyz",
+            "GIT_REMOTE=origin",
+            "GIT_BRANCH=main",
+            "NEXT_PUBLIC_BASE_PATH=/blog"
+          )
+          Set-Content -Path "$appDir\.env.local" -Value ($envLines -join "`r`n") -NoNewline
+
           Set-Location $appDir
-          $env:NEXT_PUBLIC_BASE_PATH = "/the-buckhorner"
+          $env:NEXT_PUBLIC_BASE_PATH = "/blog"
           npm install --production=false
           npm run build
 
-          # Stop existing scheduled task (which stops the node process)
           if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
             Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 3
           }
-
-          # Kill any orphaned node processes for this app
           Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
-            $_.CommandLine -like "*the-buckhorner*"
-          } | ForEach-Object {
-            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
-          }
+            $_.CommandLine -like "*the-blog*"
+          } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 
-          # Register scheduled task to run at startup (idempotent)
           $action = New-ScheduledTaskAction `
             -Execute "powershell.exe" `
             -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$appDir\start.ps1`"" `
             -WorkingDirectory $appDir
           $trigger = New-ScheduledTaskTrigger -AtStartup
-          $settings = New-ScheduledTaskSettingsSet `
-            -AllowStartIfOnBatteries `
-            -DontStopIfGoingOnBatteries `
-            -StartWhenAvailable `
-            -RestartInterval (New-TimeSpan -Minutes 1) `
-            -RestartCount 3
-
-          Register-ScheduledTask `
-            -TaskName $taskName `
-            -Action $action `
-            -Trigger $trigger `
-            -Settings $settings `
-            -User "SYSTEM" `
-            -RunLevel Highest `
-            -Force
-
-          # Start it now
+          $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+          $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+          Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
           Start-ScheduledTask -TaskName $taskName
-
-          Start-Sleep -Seconds 3
-
-          # Verify it's running
-          $task = Get-ScheduledTask -TaskName $taskName
-          if ($task.State -eq "Running") {
-            Write-Host "The Buckhorner deployed and running on port 3001"
-          } else {
-            Write-Host "WARNING: Task registered but may not be running yet (state: $($task.State))"
-            Write-Host "Check C:\apps\the-buckhorner\stderr.log for errors"
-          }
+          Write-Host "Started scheduled task: $taskName"
