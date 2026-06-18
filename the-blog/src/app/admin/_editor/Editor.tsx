@@ -71,6 +71,8 @@ export default function Editor({ mode, initial }: Props) {
   const [status, setStatus] = useState<string>("");
   const [dragging, setDragging] = useState(false);
   const editorRef = useRef<EditorView | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef(false);
   const savedRef = useRef({
     title: initial.title,
     slug: initial.slug,
@@ -123,6 +125,48 @@ export default function Editor({ mode, initial }: Props) {
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onDocumentClick, true);
+    };
+  }, []);
+
+  // Keep the markdown editor and rendered preview scrolling together.
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    let frame = 0;
+
+    function syncScroll(source: HTMLElement, target: HTMLElement) {
+      if (syncingScrollRef.current) return;
+      const sourceMax = source.scrollHeight - source.clientHeight;
+      const targetMax = target.scrollHeight - target.clientHeight;
+      if (sourceMax <= 0 || targetMax <= 0) return;
+      syncingScrollRef.current = true;
+      target.scrollTop = (source.scrollTop / sourceMax) * targetMax;
+      window.requestAnimationFrame(() => {
+        syncingScrollRef.current = false;
+      });
+    }
+
+    function connect() {
+      const editorScroller = editorRef.current?.scrollDOM;
+      const preview = previewRef.current;
+      if (!editorScroller || !preview) {
+        frame = window.requestAnimationFrame(connect);
+        return;
+      }
+
+      const onEditorScroll = () => syncScroll(editorScroller, preview);
+      const onPreviewScroll = () => syncScroll(preview, editorScroller);
+      editorScroller.addEventListener("scroll", onEditorScroll, { passive: true });
+      preview.addEventListener("scroll", onPreviewScroll, { passive: true });
+      cleanup = () => {
+        editorScroller.removeEventListener("scroll", onEditorScroll);
+        preview.removeEventListener("scroll", onPreviewScroll);
+      };
+    }
+
+    connect();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      cleanup?.();
     };
   }, []);
 
@@ -284,7 +328,7 @@ export default function Editor({ mode, initial }: Props) {
             basicSetup={{ lineNumbers: false, foldGutter: false, highlightActiveLine: false }}
           />
         </div>
-        <div className="preview-pane">
+        <div className="preview-pane" ref={previewRef}>
           <h1>{title || <span style={{ color: "#bbb" }}>Title</span>}</h1>
           <div className="date" style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>{date}</div>
           <ReactMarkdown
