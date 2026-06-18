@@ -71,12 +71,24 @@ article.post hr { border: none; border-top: 1px solid var(--border); margin: 32p
 .tag-filter span { opacity: .65; font-size: 11px; }
 .timeline { overflow-anchor: none; }
 .timeline-card { min-height: 520px; margin: 0 0 42px; padding-bottom: 42px; border-bottom: 1px solid var(--border); }
+.timeline-card.same-date-next { border-bottom-color: #ececec; border-bottom-width: .5px; }
+.timeline-card.date-continuation { margin-top: -18px; }
 .timeline-card time { display: block; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
 .timeline-card figure { margin: 0; }
 .timeline-card img, .timeline-card video { display: block; max-width: 100%; max-height: 78vh; width: auto; height: auto; margin: 0 auto; border-radius: 8px; background: #eee; }
 .timeline-card video { width: 100%; }
+.timeline-media-grid:not(.media-count-1) { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.timeline-media-grid:not(.media-count-1) > * { grid-column: span 2; width: 100%; min-width: 0; }
+.timeline-media-grid:not(.media-count-1) img, .timeline-media-grid:not(.media-count-1) video { width: 100%; height: 100%; max-height: none; aspect-ratio: 4 / 3; object-fit: cover; }
+.timeline-media-grid:not(.media-count-1) .live-photo { display: block; position: relative; }
+.timeline-media-grid.remainder-1:not(.media-count-1) > :first-child { grid-column: span 6; }
+.timeline-media-grid.remainder-2:not(.media-count-2) > :nth-child(-n+2), .timeline-media-grid.media-count-2 > * { grid-column: span 3; }
 .timeline-card figcaption { max-width: 680px; margin: 12px auto 0; color: #333; font-size: 15px; line-height: 1.55; text-align: center; }
 .timeline-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+@media (max-width: 700px) {
+  .timeline-media-grid:not(.media-count-1) { grid-template-columns: 1fr; }
+  .timeline-media-grid:not(.media-count-1) > * { grid-column: 1 / -1 !important; }
+}
 .timeline-sentinel, .empty { color: var(--muted); text-align: center; padding: 24px; }
 
 ul.posts { list-style: none; padding: 0; margin: 0; }

@@ -50,16 +50,22 @@ function isValidDate(date: string) {
 }
 
 function expandTimelineMarkdown(md: string) {
+  let previousDate = "";
   return md.replace(/^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/gm, (_match, marker: string, caption: string, src: string, liveSrc: string | undefined, tags: string, date: string) => {
+    const cleanDate = date.trim();
     const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").replace(/[<>]/g, "");
-    const media = marker === "@"
-      ? `<video src="${escapeHtml(src)}" controls playsinline data-auto-video></video>`
-      : liveSrc
-        ? `<span class="live-photo"><img src="${escapeHtml(src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
-        : `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />`;
+    const mediaParts = marker === "@" ? [src] : src.split("|").map((part) => part.trim()).filter(Boolean);
+    const media = mediaParts.map((part) => marker === "@"
+      ? `<video src="${escapeHtml(part)}" playsinline data-auto-video></video>`
+      : liveSrc && mediaParts.length === 1
+        ? `<span class="live-photo"><img src="${escapeHtml(part)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
+        : `<img src="${escapeHtml(part)}" alt="${escapeHtml(alt)}" />`).join("");
     const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
     const tagHtml = tags.split(",").map(normalizeTag).filter(Boolean).map((t) => `<span>${escapeHtml(t)}</span>`).join(" ");
-    return `<article class="timeline-card preview-card"><time>${escapeHtml(date.trim())}</time><figure>\n${media}${captionHtml}\n<div class="timeline-tags">${tagHtml}</div>\n</figure></article>`;
+    const showDate = cleanDate !== previousDate;
+    const cls = `timeline-card preview-card ${showDate ? "" : "date-continuation"}`;
+    previousDate = cleanDate;
+    return `<article class="${cls}">${showDate ? `<time>${escapeHtml(cleanDate)}</time>` : ""}<figure>\n<div class="timeline-media-grid media-count-${Math.min(mediaParts.length, 6)} remainder-${mediaParts.length % 3}">${media}</div>${captionHtml}\n<div class="timeline-tags">${tagHtml}</div>\n</figure></article>`;
   });
 }
 
@@ -112,6 +118,7 @@ function validateTimelineMarkdown(md: string): ValidationMessage[] {
     const tags = match[5].split(",").map(normalizeTag).filter(Boolean);
     const date = match[6].trim();
     if (marker === "@" && liveSrc) messages.push({ line: lineNo, level: "warning", message: "Video items ignore live: sources" });
+    if (marker === "!" && match[3].includes("|") && liveSrc) messages.push({ line: lineNo, level: "warning", message: "Multi-image items ignore live: sources" });
     if (!isValidDate(date)) messages.push({ line: lineNo, level: "error", message: "Invalid date; expected a real YYYY-MM-DD date" });
     if (tags.length === 0) messages.push({ line: lineNo, level: "error", message: "At least one tag is required" });
     if (new Set(tags).size !== tags.length) messages.push({ line: lineNo, level: "warning", message: "Duplicate tag" });
@@ -205,15 +212,18 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
   }
 
   async function handleFiles(files: FileList | File[]) {
+    const plainImages: string[] = [];
     const snippets: string[] = [];
     for (const file of Array.from(files)) {
       const uploaded = await uploadFile(file);
       if (!uploaded) continue;
       const isVideo = file.type.startsWith("video/");
-      if (uploaded.liveUrl) snippets.push(`![caption](${uploaded.url} "live:${uploaded.liveUrl}")<tag>{${todayISO()}}`);
-      else if (isVideo) snippets.push(`@[caption](${uploaded.url})<tag>{${todayISO()}}`);
-      else snippets.push(`![caption](${uploaded.url})<tag>{${todayISO()}}`);
+      if (!isVideo && !uploaded.liveUrl) plainImages.push(uploaded.url);
+      else if (uploaded.liveUrl) snippets.push(`![caption](${uploaded.url} "live:${uploaded.liveUrl}")<tag>{${todayISO()}}`);
+      else snippets.push(`@[caption](${uploaded.url})<tag>{${todayISO()}}`);
     }
+    if (plainImages.length === 1) snippets.unshift(`![caption](${plainImages[0]})<tag>{${todayISO()}}`);
+    else if (plainImages.length > 1) snippets.unshift(`![caption](${plainImages.join("|")})<tag>{${todayISO()}}`);
     if (snippets.length) insertAtCursor(`\n${snippets.join("\n\n")}\n`);
   }
 
@@ -285,7 +295,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
       </div>
 
       <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}>
-        Source format: ![caption](image)&lt;tag1,tag2&gt;{'{YYYY-MM-DD}'} · @[caption](video)&lt;tag&gt;{'{YYYY-MM-DD}'}. Drag/drop media to upload and insert snippets.
+        Source format: ![caption](image)&lt;tag1,tag2&gt;{'{YYYY-MM-DD}'} · ![caption](image1|image2|image3)&lt;tag&gt;{'{YYYY-MM-DD}'} · @[caption](video)&lt;tag&gt;{'{YYYY-MM-DD}'}. Drag/drop media to upload and insert snippets.
       </p>
     </div>
   );

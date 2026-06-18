@@ -121,7 +121,14 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const visibleItems = useMemo(() => items.slice(range.start, range.end), [items, range]);
+  const visibleItems = useMemo(() => items.slice(range.start, range.end).map((item, offset) => {
+    const index = range.start + offset;
+    return {
+      item,
+      showDate: index === 0 || items[index - 1]?.date !== item.date,
+      sameDateNext: items[index + 1]?.date === item.date,
+    };
+  }), [items, range]);
   const displayedTags = useMemo(() => {
     const byTag = new Map(availableTags.map((t) => [t.tag, t]));
     for (const tag of activeTags) if (!byTag.has(tag)) byTag.set(tag, { tag, count: 0 });
@@ -152,7 +159,7 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
 
       <section className="timeline" aria-live="polite">
         <div style={{ height: topSpacer }} />
-        {visibleItems.map((item) => <TimelineCard key={item.id} item={item} />)}
+        {visibleItems.map(({ item, showDate, sameDateNext }) => <TimelineCard key={item.id} item={item} showDate={showDate} sameDateNext={sameDateNext} />)}
         <div style={{ height: bottomSpacer }} />
       </section>
       <div ref={sentinelRef} className="timeline-sentinel">{loading ? "Loading…" : nextCursor ? "Scroll for more" : items.length ? "End" : ""}</div>
@@ -161,21 +168,26 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   );
 }
 
-function TimelineCard({ item }: { item: TimelineItem }) {
+function TimelineCard({ item, showDate, sameDateNext }: { item: TimelineItem; showDate: boolean; sameDateNext: boolean }) {
+  const media = item.media?.length ? item.media : [{ kind: item.kind, src: item.src, liveSrc: item.liveSrc, altText: item.altText }];
   return (
-    <article className="timeline-card">
-      <time dateTime={item.date}>{item.date}</time>
+    <article className={`timeline-card ${sameDateNext ? "same-date-next" : "date-boundary"} ${showDate ? "" : "date-continuation"}`}>
+      {showDate ? <time dateTime={item.date}>{item.date}</time> : null}
       <figure>
-        {item.kind === "video" ? (
-          <video src={item.src} playsInline data-auto-video />
-        ) : item.kind === "live-photo" ? (
-          <span className="live-photo"><img src={item.src} data-live-src={item.liveSrc} alt={item.altText} /><span className="live-badge">▶</span></span>
-        ) : (
-          <img src={item.src} alt={item.altText} loading="lazy" />
-        )}
+        <div className={`timeline-media-grid media-count-${Math.min(media.length, 6)} remainder-${media.length % 3}`}>
+          {media.map((m, index) => <TimelineMedia key={`${m.src}:${index}`} media={m} />)}
+        </div>
         {item.captionHtml ? <figcaption dangerouslySetInnerHTML={{ __html: item.captionHtml }} /> : null}
       </figure>
       <div className="timeline-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
     </article>
   );
+}
+
+function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string } }) {
+  if (media.kind === "video") return <video src={media.src} playsInline data-auto-video />;
+  if (media.kind === "live-photo") {
+    return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} /><span className="live-badge">▶</span></span>;
+  }
+  return <img src={media.src} alt={media.altText} loading="lazy" />;
 }

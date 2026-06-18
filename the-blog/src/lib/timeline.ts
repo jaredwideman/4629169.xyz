@@ -10,11 +10,19 @@ import { contentDir } from "./posts";
 
 const execFileAsync = promisify(execFile);
 
+export type TimelineMedia = {
+  kind: "image" | "video" | "live-photo";
+  src: string;
+  liveSrc?: string;
+  altText: string;
+};
+
 export type TimelineItem = {
   id: string;
   kind: "image" | "video" | "live-photo";
   src: string;
   liveSrc?: string;
+  media: TimelineMedia[];
   captionMarkdown: string;
   captionHtml: string;
   altText: string;
@@ -206,16 +214,28 @@ export async function parseTimelineItemsFromMarkdown(input: {
     const date = match[6].trim();
     if (!isRealDate(date) || tags.length === 0) continue;
 
-    const kind = marker === "@" ? "video" : liveSrc ? "live-photo" : "image";
+    const altText = stripMarkdownForAlt(captionMarkdown);
+    const media: TimelineMedia[] = marker === "@"
+      ? [{ kind: "video", src, altText }]
+      : src.split("|").map((part) => part.trim()).filter(Boolean).map((part) => ({
+        kind: liveSrc ? "live-photo" : "image",
+        src: part,
+        liveSrc: src.includes("|") ? undefined : liveSrc,
+        altText,
+      }));
+    if (media.length === 0) continue;
+
+    const firstMedia = media[0];
     const sourceLine = index + 1;
     items.push({
       id: `${input.sourcePost}:${sourceLine}`,
-      kind,
-      src,
-      liveSrc,
+      kind: firstMedia.kind,
+      src: firstMedia.src,
+      liveSrc: firstMedia.liveSrc,
+      media,
       captionMarkdown,
       captionHtml: captionMarkdown ? await inlineMarkdown(captionMarkdown) : "",
-      altText: stripMarkdownForAlt(captionMarkdown),
+      altText,
       tags: Array.from(new Set(tags)).sort(),
       date,
       sourcePost: input.sourcePost,
