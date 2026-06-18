@@ -9,15 +9,12 @@ export default function LivePhotoScript() {
     let mutedEnabled = getMutedSetting();
 
     function videoIsInSafeViewport(video: HTMLVideoElement) {
-      const topSafe = window.innerHeight * 0.08;
-      const bottomSafe = window.innerHeight * 0.92;
       const rect = video.getBoundingClientRect();
-      const safeHeight = bottomSafe - topSafe;
-      const center = rect.top + rect.height / 2;
-      const fullyInsideSafeArea = rect.top >= topSafe && rect.bottom <= bottomSafe;
-      const tallButCentered = rect.height > safeHeight && center >= topSafe && center <= bottomSafe;
-      const visibleAtAll = rect.bottom > 0 && rect.top < window.innerHeight;
-      return visibleAtAll && (fullyInsideSafeArea || tallButCentered);
+      const visibleTop = Math.max(0, rect.top);
+      const visibleBottom = Math.min(window.innerHeight, rect.bottom);
+      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+      const visibleRatio = rect.height > 0 ? visibleHeight / rect.height : 0;
+      return visibleRatio >= 0.8;
     }
 
     function onClick(e: MouseEvent) {
