@@ -56,7 +56,7 @@ jobs:
             $proxyBlock += '                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' + "`n"
             $proxyBlock += '                proxy_set_header X-Forwarded-Proto $scheme;' + "`n"
             $proxyBlock += '                proxy_cache_bypass $http_upgrade;' + "`n"
-            $proxyBlock += "                client_max_body_size 100m;`n"
+            $proxyBlock += "                client_max_body_size 500m;`n"
             $proxyBlock += "            }`n"
 
             if ($content -match "(?s)(location\s+/jellyfin/.+?\})") {
