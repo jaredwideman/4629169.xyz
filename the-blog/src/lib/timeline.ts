@@ -42,6 +42,12 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const MEDIA_RE = /^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/;
 
+type TimelineSourceEntry = {
+  line: string;
+  date: string;
+  originalIndex: number;
+};
+
 export function timelineDir(): string {
   return path.join(contentDir(), "timeline");
 }
@@ -76,6 +82,42 @@ async function trackedTimelineFilenames(): Promise<Set<string>> {
 
 export function normalizeTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+export function normalizeTimelineSourceLine(line: string): string | null {
+  const match = line.match(MEDIA_RE);
+  if (!match) return null;
+  const tags = Array.from(new Set(match[5].split(",").map(normalizeTag).filter(Boolean))).sort().join(",");
+  const live = match[4] ? ` "live:${match[4].trim()}"` : "";
+  return `${match[1]}[${match[2].trim()}](${match[3].trim()}${live})<${tags}>{${match[6].trim()}}`;
+}
+
+export function formatTimelineSource(markdown: string): string {
+  const lines = markdown.split(/\r?\n/);
+  const entries: TimelineSourceEntry[] = [];
+  const otherLines: string[] = [];
+
+  lines.forEach((line, index) => {
+    const normalized = normalizeTimelineSourceLine(line);
+    if (!normalized) {
+      if (line.trim()) otherLines.push(line.trimEnd());
+      return;
+    }
+    const match = normalized.match(MEDIA_RE);
+    const date = match?.[6]?.trim() || "";
+    if (!isRealDate(date)) {
+      otherLines.push(line.trimEnd());
+      return;
+    }
+    entries.push({ line: normalized, date, originalIndex: index });
+  });
+
+  entries.sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return a.originalIndex - b.originalIndex;
+  });
+
+  return [...otherLines, ...entries.map((entry) => entry.line)].join("\n\n").trimEnd() + (entries.length || otherLines.length ? "\n" : "");
 }
 
 function isRealDate(date: string): boolean {
@@ -191,8 +233,9 @@ function matchesTags(item: TimelineItem, selected: string[]): boolean {
 }
 
 function compareItems(a: TimelineItem, b: TimelineItem): number {
-  if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  if (a.date !== b.date) return b.date.localeCompare(a.date);
+  if (a.sourcePost !== b.sourcePost) return b.sourcePost.localeCompare(a.sourcePost);
+  return a.sourceLine - b.sourceLine;
 }
 
 export async function listTimelineItems(opts: {
@@ -210,11 +253,10 @@ export async function listTimelineItems(opts: {
   })));
 
   const all = nested.flat().sort(compareItems);
-  const tagCounts = new Map<string, number>();
-  for (const item of all) for (const tag of item.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-
   const selectedTags = (opts.tags || []).map(normalizeTag).filter(Boolean);
   const filtered = all.filter((item) => matchesTags(item, selectedTags));
+  const tagCounts = new Map<string, number>();
+  for (const item of filtered) for (const tag of item.tags) tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
   const start = opts.cursor ? Math.max(0, filtered.findIndex((item) => item.id === opts.cursor) + 1) : 0;
   const limit = Math.min(Math.max(opts.limit || 20, 1), 50);
   const items = filtered.slice(start, start + limit);

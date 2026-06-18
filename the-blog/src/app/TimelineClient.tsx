@@ -19,36 +19,82 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const ESTIMATED_ITEM_HEIGHT = 560;
 const OVERSCAN = 4;
 
-function setQueryTags(tags: string[]) {
+function readQueryTags() {
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("tags") || params.get("tag") || "";
+  return raw.split(",").map((tag) => tag.trim().toLowerCase()).filter(Boolean).sort();
+}
+
+function writeQueryTags(tags: string[]) {
   const url = new URL(window.location.href);
+  url.searchParams.delete("tag");
   if (tags.length) url.searchParams.set("tags", tags.join(","));
   else url.searchParams.delete("tags");
-  window.location.href = url.toString();
+  window.history.pushState({}, "", url.toString());
+}
+
+function tagsKey(tags: string[]) {
+  return tags.join(",");
 }
 
 export default function TimelineClient({ initialItems, initialCursor, allTags, selectedTags }: Props) {
   const [items, setItems] = useState(initialItems);
   const [nextCursor, setNextCursor] = useState(initialCursor);
+  const [availableTags, setAvailableTags] = useState(allTags);
+  const [activeTags, setActiveTags] = useState(selectedTags);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState({ start: 0, end: Math.min(initialItems.length, 10) });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const requestIdRef = useRef(0);
 
-  const tagsKey = selectedTags.join(",");
+  const activeTagsKey = tagsKey(activeTags);
+
+  const fetchPage = useCallback(async (tags: string[], cursor?: string | null) => {
+    const params = new URLSearchParams({ limit: cursor ? "12" : "20" });
+    if (cursor) params.set("cursor", cursor);
+    if (tags.length) params.set("tags", tags.join(","));
+    const res = await fetch(`${BASE}/api/timeline?${params.toString()}`);
+    return await res.json() as PagePayload;
+  }, []);
+
+  const applyFilter = useCallback(async (tags: string[], updateUrl = true) => {
+    const sorted = [...tags].sort();
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setActiveTags(sorted);
+    setRange({ start: 0, end: 10 });
+    if (updateUrl) writeQueryTags(sorted);
+    try {
+      const json = await fetchPage(sorted, null);
+      if (requestId !== requestIdRef.current) return;
+      setItems(json.items);
+      setNextCursor(json.nextCursor);
+      setAvailableTags(json.tags);
+      setRange({ start: 0, end: Math.min(json.items.length, 10) });
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
+    }
+  }, [fetchPage]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loading) return;
     setLoading(true);
-    const params = new URLSearchParams({ cursor: nextCursor, limit: "12" });
-    if (tagsKey) params.set("tags", tagsKey);
-    const res = await fetch(`${BASE}/api/timeline?${params.toString()}`);
-    const json = await res.json() as PagePayload;
+    const json = await fetchPage(activeTags, nextCursor);
     setItems((existing) => {
       const seen = new Set(existing.map((item) => item.id));
       return [...existing, ...json.items.filter((item) => !seen.has(item.id))];
     });
     setNextCursor(json.nextCursor);
+    setAvailableTags(json.tags);
     setLoading(false);
-  }, [loading, nextCursor, tagsKey]);
+  }, [activeTags, fetchPage, loading, nextCursor]);
+
+  useEffect(() => {
+    const onPopState = () => applyFilter(readQueryTags(), false);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [applyFilter]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -76,12 +122,17 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   }, [loadMore]);
 
   const visibleItems = useMemo(() => items.slice(range.start, range.end), [items, range]);
+  const displayedTags = useMemo(() => {
+    const byTag = new Map(availableTags.map((t) => [t.tag, t]));
+    for (const tag of activeTags) if (!byTag.has(tag)) byTag.set(tag, { tag, count: 0 });
+    return Array.from(byTag.values()).sort((a, b) => a.tag.localeCompare(b.tag));
+  }, [activeTags, availableTags]);
   const topSpacer = range.start * ESTIMATED_ITEM_HEIGHT;
   const bottomSpacer = Math.max(0, (items.length - range.end) * ESTIMATED_ITEM_HEIGHT);
 
   function toggleTag(tag: string) {
-    const next = selectedTags.includes(tag) ? selectedTags.filter((t) => t !== tag) : [...selectedTags, tag].sort();
-    setQueryTags(next);
+    const next = activeTags.includes(tag) ? activeTags.filter((t) => t !== tag) : [...activeTags, tag];
+    void applyFilter(next);
   }
 
   return (
@@ -89,15 +140,15 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
       <div className="timeline-toolbar">
         <AutoplayToggle />
         <div className="tag-filter" aria-label="Filter by tags">
-          {allTags.map(({ tag, count }) => {
-            const active = selectedTags.includes(tag);
-            return <button key={tag} className={active ? "active" : ""} onClick={() => toggleTag(tag)}>#{tag} <span>{count}</span></button>;
+          {displayedTags.map(({ tag, count }) => {
+            const active = activeTags.includes(tag);
+            return <button key={tag} className={active ? "active" : ""} onClick={() => toggleTag(tag)}>{tag} <span>{count}</span></button>;
           })}
-          {selectedTags.length ? <button className="clear" onClick={() => setQueryTags([])}>clear</button> : null}
+          {activeTags.length ? <button className="clear" onClick={() => applyFilter([])}>clear</button> : null}
         </div>
       </div>
 
-      {items.length === 0 ? <p className="empty">No timeline items match this filter.</p> : null}
+      {items.length === 0 && !loading ? <p className="empty">No timeline items match this filter.</p> : null}
 
       <section className="timeline" aria-live="polite">
         <div style={{ height: topSpacer }} />
@@ -116,7 +167,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
       <time dateTime={item.date}>{item.date}</time>
       <figure>
         {item.kind === "video" ? (
-          <video src={item.src} controls playsInline data-auto-video />
+          <video src={item.src} playsInline data-auto-video />
         ) : item.kind === "live-photo" ? (
           <span className="live-photo"><img src={item.src} data-live-src={item.liveSrc} alt={item.altText} /><span className="live-badge">▶</span></span>
         ) : (
@@ -124,7 +175,7 @@ function TimelineCard({ item }: { item: TimelineItem }) {
         )}
         {item.captionHtml ? <figcaption dangerouslySetInnerHTML={{ __html: item.captionHtml }} /> : null}
       </figure>
-      <div className="timeline-tags">{item.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
+      <div className="timeline-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
     </article>
   );
 }

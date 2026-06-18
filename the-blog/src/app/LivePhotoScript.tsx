@@ -22,7 +22,7 @@ export default function LivePhotoScript() {
     function onClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
 
-      const video = target?.closest?.("article.post video") as HTMLVideoElement | null;
+      const video = target?.closest?.("video[data-auto-video], article.post video, article.timeline-card video") as HTMLVideoElement | null;
       if (video) {
         if (video.paused) {
           if (videoIsInSafeViewport(video)) {
@@ -51,7 +51,7 @@ export default function LivePhotoScript() {
     }
 
     function setupVideos() {
-      const videos = Array.from(document.querySelectorAll<HTMLVideoElement>("article.post video"));
+      const videos = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
       for (const video of videos) {
         video.removeAttribute("controls");
         video.muted = true;
@@ -107,12 +107,19 @@ export default function LivePhotoScript() {
       updateVideoPlayback();
     }, 500);
 
+    const observer = new MutationObserver(() => {
+      videos = setupVideos();
+      scheduleVideoUpdate();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
     return () => {
       document.removeEventListener("click", onClick);
       window.removeEventListener("scroll", scheduleVideoUpdate);
       window.removeEventListener("resize", scheduleVideoUpdate);
       window.removeEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
       window.clearTimeout(rescan);
+      observer.disconnect();
       if (raf) window.cancelAnimationFrame(raf);
     };
   }, []);

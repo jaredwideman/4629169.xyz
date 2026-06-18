@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "node:path";
 import { requireSession } from "@/lib/auth";
 import { contentDir } from "@/lib/posts";
-import { isValidMonth, getTimelineMonth, saveTimelineMonth } from "@/lib/timeline";
+import { formatTimelineSource, isValidMonth, getTimelineMonth, saveTimelineMonth } from "@/lib/timeline";
 import { commitAndPush, gitEnabled } from "@/lib/git";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    const { filename, filepath } = await saveTimelineMonth({ month, body });
+    const savedBody = push ? formatTimelineSource(body) : body;
+    const { filename, filepath } = await saveTimelineMonth({ month, body: savedBody });
     let gitWarning: string | undefined;
     if (push) {
       if (!gitEnabled()) {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, filename, gitWarning });
+    return NextResponse.json({ ok: true, filename, body: savedBody, gitWarning });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === "UNAUTHORIZED") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

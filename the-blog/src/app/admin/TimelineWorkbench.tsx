@@ -18,6 +18,7 @@ type Props = {
 };
 
 type ValidationMessage = { line: number; level: "error" | "warning"; message: string };
+type TimelineSourceEntry = { line: string; date: string; originalIndex: number };
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const MEDIA_RE = /^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/;
@@ -57,9 +58,41 @@ function expandTimelineMarkdown(md: string) {
         ? `<span class="live-photo"><img src="${escapeHtml(src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
         : `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />`;
     const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
-    const tagHtml = tags.split(",").map(normalizeTag).filter(Boolean).map((t) => `<span>#${escapeHtml(t)}</span>`).join(" ");
+    const tagHtml = tags.split(",").map(normalizeTag).filter(Boolean).map((t) => `<span>${escapeHtml(t)}</span>`).join(" ");
     return `<article class="timeline-card preview-card"><time>${escapeHtml(date.trim())}</time><figure>\n${media}${captionHtml}\n<div class="timeline-tags">${tagHtml}</div>\n</figure></article>`;
   });
+}
+
+function normalizeTimelineSourceLine(line: string): string | null {
+  const match = line.match(MEDIA_RE);
+  if (!match) return null;
+  const tags = Array.from(new Set(match[5].split(",").map(normalizeTag).filter(Boolean))).sort().join(",");
+  const live = match[4] ? ` "live:${match[4].trim()}"` : "";
+  return `${match[1]}[${match[2].trim()}](${match[3].trim()}${live})<${tags}>{${match[6].trim()}}`;
+}
+
+function formatTimelineSource(md: string): string {
+  const entries: TimelineSourceEntry[] = [];
+  const otherLines: string[] = [];
+  md.split(/\r?\n/).forEach((line, index) => {
+    const normalized = normalizeTimelineSourceLine(line);
+    if (!normalized) {
+      if (line.trim()) otherLines.push(line.trimEnd());
+      return;
+    }
+    const match = normalized.match(MEDIA_RE);
+    const date = match?.[6]?.trim() || "";
+    if (!isValidDate(date)) {
+      otherLines.push(line.trimEnd());
+      return;
+    }
+    entries.push({ line: normalized, date, originalIndex: index });
+  });
+  entries.sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return a.originalIndex - b.originalIndex;
+  });
+  return [...otherLines, ...entries.map((entry) => entry.line)].join("\n\n").trimEnd() + (entries.length || otherLines.length ? "\n" : "");
 }
 
 function validateTimelineMarkdown(md: string): ValidationMessage[] {
@@ -142,8 +175,10 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
       setStatus(json.error || `Failed (${res.status})`);
       return;
     }
-    savedRef.current = { month, body };
-    setStatus(json.gitWarning ? `Saved (git: ${json.gitWarning})` : publish ? "Published ✓" : "Saved ✓");
+    const savedBody = typeof json.body === "string" ? json.body : body;
+    if (savedBody !== body) setBody(savedBody);
+    savedRef.current = { month, body: savedBody };
+    setStatus(json.gitWarning ? `Saved (git: ${json.gitWarning})` : publish ? "Published + sorted ✓" : "Saved ✓");
     router.refresh();
   }
 
@@ -196,15 +231,10 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
   }
 
   function normalizeDocument() {
-    const next = body.split(/\r?\n/).map((line) => {
-      const match = line.match(MEDIA_RE);
-      if (!match) return line;
-      const tags = Array.from(new Set(match[5].split(",").map(normalizeTag).filter(Boolean))).sort().join(",");
-      const live = match[4] ? ` "live:${match[4].trim()}"` : "";
-      return `${match[1]}[${match[2].trim()}](${match[3].trim()}${live})<${tags}>{${match[6].trim()}}`;
-    }).join("\n");
-    setBody(next);
+    setBody(formatTimelineSource(body));
   }
+
+  const previewBody = useMemo(() => formatTimelineSource(body), [body]);
 
   return (
     <div className="admin-shell timeline-workbench">
@@ -218,7 +248,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
         </select>
         <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         <button onClick={() => router.push(`/admin?month=${todayISO().slice(0, 7)}`)}>This month</button>
-        <button onClick={normalizeDocument}>Normalize</button>
+        <button onClick={normalizeDocument}>Normalize + sort</button>
         <span className="grow" />
         <span className="status">{status || (hasUnsavedChanges ? "Unsaved changes" : "")}</span>
         <button onClick={() => save({ publish: false })}>Save</button>
@@ -240,7 +270,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
           <section className="validation-panel">
             <h2>Validation</h2>
             <p>{body.split(/\r?\n/).filter((line) => MEDIA_RE.test(line)).length} timeline item(s) · {knownTags.length} tag(s)</p>
-            {knownTags.length ? <div className="timeline-tags tag-list">{knownTags.map((tag) => <span key={tag}>#{tag}</span>)}</div> : null}
+            {knownTags.length ? <div className="timeline-tags tag-list">{knownTags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
             {validation.length === 0 ? <p className="ok">✓ no syntax issues</p> : (
               <ul>
                 {validation.map((msg, i) => <li key={i} className={msg.level}><strong>Line {msg.line}:</strong> {msg.message}</li>)}
@@ -249,7 +279,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
           </section>
           <section className="preview-pane source-preview">
             <h2>Preview</h2>
-            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeRaw]}>{expandTimelineMarkdown(body)}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeRaw]}>{expandTimelineMarkdown(previewBody)}</ReactMarkdown>
           </section>
         </aside>
       </div>
