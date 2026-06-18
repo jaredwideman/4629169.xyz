@@ -37,8 +37,7 @@ jobs:
           $content2 = [regex]::Replace($content2, '(?ms)\s*#\s*blog proxy\s*\r?\n\s*location\s+/blog/\s*\{.*?\}\s*', "`n")
           if ($content2 -ne $content) { $content = $content2; $changed = $true; Write-Host "Removed existing /blog nginx block" }
 
-          {
-            $proxyBlock = "`n            # blog proxy`n"
+          $proxyBlock = "`n            # blog proxy`n"
             $proxyBlock += "            location = /blog {`n"
             $proxyBlock += "                proxy_pass http://127.0.0.1:3001;`n"
             $proxyBlock += "                proxy_http_version 1.1;`n"
@@ -65,9 +64,8 @@ jobs:
             } else {
               $content = $content -replace '(\}\s*\}\s*)$', ($proxyBlock + '$1')
             }
-            $changed = $true
-            Write-Host "Added /blog/ proxy block"
-          }
+          $changed = $true
+          Write-Host "Added /blog/ proxy block"
 
           if ($changed) {
             Set-Content -Path $nginxConf -Value $content -NoNewline
