@@ -145,8 +145,8 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   return (
     <>
       <div className="timeline-toolbar">
-        <AutoplayToggle />
         <div className="tag-filter" aria-label="Filter by tags">
+          <AutoplayToggle />
           {displayedTags.map(({ tag, count }) => {
             const active = activeTags.includes(tag);
             return <button key={tag} className={active ? "active" : ""} onClick={() => toggleTag(tag)}>{tag} <span>{count}</span></button>;
