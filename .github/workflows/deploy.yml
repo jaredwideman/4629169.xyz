@@ -32,9 +32,21 @@ jobs:
           $content2 = [regex]::Replace($content2, '(?ms)\s*location\s+/the-buckhorner/\s*\{[^}]*\}\s*', "`n")
           if ($content2 -ne $content) { $content = $content2; $changed = $true; Write-Host "Removed old /the-buckhorner/ nginx block" }
 
-          if ($content -notmatch "location\s+/blog/") {
+          # Always replace our blog proxy block so workflow fixes are applied to nginx.
+          $content2 = [regex]::Replace($content, '(?ms)\s*#\s*blog proxy\s*\r?\n\s*location\s*=\s*/blog\s*\{.*?\}\s*location\s+/blog/\s*\{.*?\}\s*', "`n")
+          $content2 = [regex]::Replace($content2, '(?ms)\s*#\s*blog proxy\s*\r?\n\s*location\s+/blog/\s*\{.*?\}\s*', "`n")
+          if ($content2 -ne $content) { $content = $content2; $changed = $true; Write-Host "Removed existing /blog nginx block" }
+
+          {
             $proxyBlock = "`n            # blog proxy`n"
-            $proxyBlock += "            location = /blog { return 301 /blog/; }`n"
+            $proxyBlock += "            location = /blog {`n"
+            $proxyBlock += "                proxy_pass http://127.0.0.1:3001;`n"
+            $proxyBlock += "                proxy_http_version 1.1;`n"
+            $proxyBlock += '                proxy_set_header Host $host;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Real-IP $remote_addr;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;' + "`n"
+            $proxyBlock += '                proxy_set_header X-Forwarded-Proto $scheme;' + "`n"
+            $proxyBlock += "            }`n"
             $proxyBlock += "            location /blog/ {`n"
             $proxyBlock += "                proxy_pass http://127.0.0.1:3001;`n"
             $proxyBlock += "                proxy_http_version 1.1;`n"
