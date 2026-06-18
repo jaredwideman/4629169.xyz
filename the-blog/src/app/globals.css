@@ -60,7 +60,7 @@ article.post p { line-height: 1.7; }
 article.post hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 
 .timeline-container { max-width: 860px; }
-.timeline-toolbar { position: sticky; top: 0; z-index: 5; background: rgba(250,250,250,.94); backdrop-filter: blur(8px); padding: 10px 0 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.timeline-toolbar { background: rgba(250,250,250,.94); padding: 10px 0 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
 .timeline-toolbar .autoplay-toggle { border: 1px solid var(--border); border-radius: 999px; background: #fff; padding: 5px 10px; margin-bottom: 10px; cursor: pointer; }
 .timeline-toolbar .autoplay-toggle.is-on { color: #168a2f; }
 .timeline-toolbar .autoplay-toggle.is-off { color: #c01818; }
