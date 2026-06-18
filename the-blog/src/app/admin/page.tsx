@@ -1,45 +1,23 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { listPosts, todayISO } from "@/lib/posts";
-import DeleteButton from "./DeleteButton";
+import { currentMonth, getTimelineMonth, isValidMonth, listTimelineMonths } from "@/lib/timeline";
+import TimelineWorkbench from "./TimelineWorkbench";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminHome() {
+type Props = { searchParams: Promise<{ month?: string }> };
+
+export default async function AdminHome({ searchParams }: Props) {
   const session = await getSession();
   if (!session) redirect("login");
-  const posts = await listPosts({ includeDrafts: true });
-  const base = process.env.NEXT_PUBLIC_BASE_PATH || "";
-  return (
-    <div className="admin-shell">
-      <div className="admin-bar">
-        <strong>Admin</strong>
-        <span className="status">signed in as {session.email}</span>
-        <span className="grow" />
-        <Link href="/admin/new"><button className="primary">New post</button></Link>
-        <form action={`${base}/api/auth/logout`} method="post" style={{ display: "inline" }}>
-          <button>Sign out</button>
-        </form>
-      </div>
-      <p style={{ color: "var(--muted)", fontSize: 13 }}>
-        {posts.length} post{posts.length === 1 ? "" : "s"} · today is {todayISO()}
-      </p>
-      <ul className="posts">
-        {posts.map((p) => (
-          <li key={p.filename}>
-            <h2>
-              <Link href={`/admin/edit/${p.slug}`}>{p.title}</Link>
-              {p.draft ? <span className="draft-badge">DRAFT</span> : null}
-            </h2>
-            <div className="date">
-              {p.date} · <code style={{ fontSize: 12 }}>{p.filename}</code>
-              {!p.tracked ? " · local only" : ""}
-              {" · "}<DeleteButton filename={p.filename} title={p.title} tracked={p.tracked} />
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  const params = await searchParams;
+  const months = await listTimelineMonths();
+  const requestedMonth = params.month && isValidMonth(params.month) ? params.month : undefined;
+  const selectedMonth = requestedMonth || months[0]?.month || currentMonth();
+  const selected = await getTimelineMonth(selectedMonth);
+  const monthSummaries = months.some((m) => m.month === selected.month)
+    ? months.map((m) => ({ month: m.month, filename: m.filename, tracked: m.tracked }))
+    : [{ month: selected.month, filename: selected.filename, tracked: selected.tracked }, ...months.map((m) => ({ month: m.month, filename: m.filename, tracked: m.tracked }))];
+
+  return <TimelineWorkbench initialMonth={selected.month} initialBody={selected.body} months={monthSummaries} />;
 }

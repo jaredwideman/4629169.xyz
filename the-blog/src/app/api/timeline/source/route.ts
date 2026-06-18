@@ -1,0 +1,51 @@
+import { NextRequest, NextResponse } from "next/server";
+import path from "node:path";
+import { requireSession } from "@/lib/auth";
+import { contentDir } from "@/lib/posts";
+import { isValidMonth, getTimelineMonth, saveTimelineMonth } from "@/lib/timeline";
+import { commitAndPush, gitEnabled } from "@/lib/git";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: NextRequest) {
+  try {
+    await requireSession();
+    const month = req.nextUrl.searchParams.get("month") || "";
+    if (!isValidMonth(month)) return NextResponse.json({ error: "Invalid month" }, { status: 400 });
+    const file = await getTimelineMonth(month);
+    return NextResponse.json({ ok: true, ...file });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "UNAUTHORIZED") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireSession();
+    const data = await req.json();
+    const { month, body, push } = data || {};
+    if (typeof month !== "string" || typeof body !== "string" || !isValidMonth(month)) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    const { filename, filepath } = await saveTimelineMonth({ month, body });
+    let gitWarning: string | undefined;
+    if (push) {
+      if (!gitEnabled()) {
+        gitWarning = "BLOG_GIT_PAT not set; saved locally only";
+      } else {
+        const rel = path.relative(contentDir(), filepath).replace(/\\/g, "/");
+        const result = await commitAndPush(`Update timeline ${month}\n\nby ${session.email}`, [rel]);
+        if (!result.ok) gitWarning = result.error;
+      }
+    }
+
+    return NextResponse.json({ ok: true, filename, gitWarning });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "UNAUTHORIZED") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
