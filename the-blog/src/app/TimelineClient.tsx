@@ -155,9 +155,7 @@ function TimelineCard({ item, showDate, sameDateNext }: { item: TimelineItem; sh
     <article className={`timeline-card ${sameDateNext ? "same-date-next" : "date-boundary"} ${showDate ? "" : "date-continuation"}`}>
       {showDate ? <time dateTime={item.date}>{item.date}</time> : null}
       <figure>
-        <div className={`timeline-media-grid media-count-${Math.min(media.length, 6)} remainder-${media.length % 3}`}>
-          {media.map((m, index) => <TimelineMedia key={`${m.src}:${index}`} media={m} />)}
-        </div>
+        <TimelineMediaGrid media={media} />
         {item.captionHtml ? <figcaption dangerouslySetInnerHTML={{ __html: item.captionHtml }} /> : null}
       </figure>
       <div className="timeline-tags">{item.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
@@ -165,11 +163,75 @@ function TimelineCard({ item, showDate, sameDateNext }: { item: TimelineItem; sh
   );
 }
 
-function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string; positionX?: number; positionY?: number; volume?: number } }) {
+type CardMedia = { kind: string; src: string; liveSrc?: string; altText: string; positionX?: number; positionY?: number; volume?: number };
+
+type MediaRow = { indexes: number[]; aspectSum: number };
+
+function buildSmartRows(aspects: number[]): MediaRow[] {
+  if (aspects.length <= 1) return [{ indexes: aspects.map((_a, i) => i), aspectSum: aspects.reduce((a, b) => a + b, 0) || 1 }];
+  const rows: MediaRow[] = [];
+  let indexes: number[] = [];
+  let aspectSum = 0;
+  const targetAspect = 2.8;
+  const maxPerRow = 3;
+
+  aspects.forEach((aspect, index) => {
+    indexes.push(index);
+    aspectSum += aspect;
+    const hitTarget = aspectSum >= targetAspect;
+    const hitMax = indexes.length >= maxPerRow;
+    const isLast = index === aspects.length - 1;
+    if (hitTarget || hitMax || isLast) {
+      rows.push({ indexes, aspectSum });
+      indexes = [];
+      aspectSum = 0;
+    }
+  });
+
+  return rows;
+}
+
+function TimelineMediaGrid({ media }: { media: CardMedia[] }) {
+  const [aspects, setAspects] = useState<Record<number, number>>({});
+  const canSmartLayout = media.length > 1 && media.every((m) => m.kind === "image");
+  const hasAllAspects = canSmartLayout && media.every((_m, index) => aspects[index]);
+  const rows = useMemo(() => hasAllAspects ? buildSmartRows(media.map((_m, index) => aspects[index])) : [], [aspects, hasAllAspects, media]);
+
+  function noteAspect(index: number, img: HTMLImageElement) {
+    if (!canSmartLayout || !img.naturalWidth || !img.naturalHeight) return;
+    const aspect = img.naturalWidth / img.naturalHeight;
+    setAspects((existing) => existing[index] === aspect ? existing : { ...existing, [index]: aspect });
+  }
+
+  if (hasAllAspects) {
+    return (
+      <div className="timeline-media-smart">
+        {rows.map((row, rowIndex) => (
+          <div key={rowIndex} className="timeline-media-row">
+            {row.indexes.map((index) => (
+              <div key={`${media[index].src}:${index}`} className="timeline-media-cell" style={{ flex: `${aspects[index]} 1 0` }}>
+                <TimelineMedia media={media[index]} index={index} onImageLoad={noteAspect} crop={false} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`timeline-media-grid media-count-${Math.min(media.length, 6)} remainder-${media.length % 3}`}>
+      {media.map((m, index) => <TimelineMedia key={`${m.src}:${index}`} media={m} index={index} onImageLoad={noteAspect} crop />)}
+    </div>
+  );
+}
+
+function TimelineMedia({ media, index, onImageLoad, crop }: { media: CardMedia; index: number; onImageLoad?: (index: number, img: HTMLImageElement) => void; crop: boolean }) {
   const [position, setPosition] = useState({ x: media.positionX ?? 50, y: media.positionY ?? 50 });
-  const style = { objectPosition: `${position.x}% ${position.y}%` };
+  const style = crop ? { objectPosition: `${position.x}% ${position.y}%` } : undefined;
 
   function onPointerDown(e: React.PointerEvent<HTMLImageElement>) {
+    if (!crop) return;
     const target = e.currentTarget;
     const start = { pointerX: e.clientX, pointerY: e.clientY, x: position.x, y: position.y };
     target.setPointerCapture(e.pointerId);
@@ -193,7 +255,7 @@ function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?
 
   if (media.kind === "video") return <video src={media.src} playsInline data-auto-video data-volume={media.volume ?? 100} />;
   if (media.kind === "live-photo") {
-    return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} style={style} onPointerDown={onPointerDown} draggable={false} /><span className="live-badge">▶</span></span>;
+    return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} style={style} onPointerDown={onPointerDown} onLoad={(e) => onImageLoad?.(index, e.currentTarget)} draggable={false} /><span className="live-badge">▶</span></span>;
   }
-  return <img src={media.src} alt={media.altText} loading="lazy" style={style} onPointerDown={onPointerDown} draggable={false} />;
+  return <img src={media.src} alt={media.altText} loading="lazy" style={style} onPointerDown={onPointerDown} onLoad={(e) => onImageLoad?.(index, e.currentTarget)} draggable={false} />;
 }
