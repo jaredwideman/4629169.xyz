@@ -11,7 +11,7 @@ export default async function EditPostPage({ params }: Props) {
   const { slug } = await params;
   const session = await getSession();
   if (!session) redirect("../../login");
-  const post = await getPostBySlug(slug);
+  const post = await getPostBySlug(slug, { includeUntracked: true });
   if (!post) notFound();
   return (
     <Editor
@@ -24,6 +24,7 @@ export default async function EditPostPage({ params }: Props) {
         draft: post.draft,
         excerpt: post.excerpt || "",
         previousFilename: post.filename,
+        tracked: post.tracked,
       }}
     />
   );

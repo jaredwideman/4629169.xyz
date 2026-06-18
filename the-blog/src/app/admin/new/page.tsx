@@ -19,6 +19,7 @@ export default async function NewPostPage() {
         draft: true,
         excerpt: "",
         previousFilename: "",
+        tracked: false,
       }}
     />
   );

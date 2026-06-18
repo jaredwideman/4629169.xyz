@@ -9,10 +9,10 @@ type Props = { params: Promise<{ slug: string }> };
 
 export default async function PostPage({ params }: Props) {
   const { slug } = await params;
-  const post = await getPostBySlug(slug);
-  if (!post) notFound();
   const session = await getSession();
-  if (post.draft && !session) notFound();
+  const post = await getPostBySlug(slug, { includeUntracked: !!session });
+  if (!post) notFound();
+  if ((post.draft || !post.tracked) && !session) notFound();
   return (
     <div className="container">
       <header className="site">

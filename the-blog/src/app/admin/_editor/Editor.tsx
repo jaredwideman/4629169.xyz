@@ -6,6 +6,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
 import ReactMarkdown from "react-markdown";
+import DeleteButton from "../DeleteButton";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeRaw from "rehype-raw";
@@ -18,6 +19,7 @@ type Initial = {
   draft: boolean;
   excerpt: string;
   previousFilename: string;
+  tracked?: boolean;
 };
 
 type Props = { mode: "new" | "edit"; initial: Initial };
@@ -57,7 +59,7 @@ export default function Editor({ mode, initial }: Props) {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        save({ publish: false });
+        save({ publish: !draft });
       }
     }
     window.addEventListener("keydown", onKey);
@@ -166,12 +168,14 @@ export default function Editor({ mode, initial }: Props) {
           style={{ flex: 1, minWidth: 140 }}
         />
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <label><input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />Draft</label>
+        <label><input type="checkbox" checked={draft} onChange={(e) => setDraft(e.target.checked)} />Keep as draft</label>
         <span className="grow" />
         <span className="status">{status}</span>
-        <button onClick={() => save({ publish: false })} title="Cmd/Ctrl-S">Save</button>
-        <button className="primary" onClick={() => save({ publish: true })}>
-          {mode === "edit" && !initial.draft ? "Update & push" : "Publish"}
+        {mode === "edit" && initial.previousFilename ? (
+          <DeleteButton filename={initial.previousFilename} title={title || initial.previousFilename} tracked={!!initial.tracked} />
+        ) : null}
+        <button className="primary" onClick={() => save({ publish: !draft })} title="Cmd/Ctrl-S">
+          Save
         </button>
       </div>
 

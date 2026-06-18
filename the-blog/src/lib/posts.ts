@@ -1,10 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import matter from "gray-matter";
 import { remark } from "remark";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import remarkHtml from "remark-html";
+
+const execFileAsync = promisify(execFile);
 
 export type PostMeta = {
   slug: string;
@@ -13,6 +17,7 @@ export type PostMeta = {
   draft: boolean;
   excerpt?: string;
   filename: string; // basename, e.g. 2026-06-17-hello-world.md
+  tracked: boolean;
 };
 
 export type Post = PostMeta & {
@@ -64,10 +69,22 @@ async function ensureDir(p: string) {
   await fs.mkdir(p, { recursive: true });
 }
 
+async function trackedPostFilenames(): Promise<Set<string>> {
+  try {
+    const { stdout } = await execFileAsync("git", ["ls-files", "posts/*.md"], { cwd: contentDir() });
+    return new Set(stdout.split(/\r?\n/).filter(Boolean).map((f) => path.basename(f)));
+  } catch {
+    // In local dev without git, treat all posts as tracked.
+    return new Set();
+  }
+}
+
 export async function listPosts(opts: { includeDrafts?: boolean } = {}): Promise<PostMeta[]> {
   const dir = postsDir();
   await ensureDir(dir);
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".md"));
+  const tracked = await trackedPostFilenames();
+  const hasTrackedInfo = tracked.size > 0;
   const out: PostMeta[] = [];
   for (const filename of files) {
     const parsed = parseFilename(filename);
@@ -75,13 +92,16 @@ export async function listPosts(opts: { includeDrafts?: boolean } = {}): Promise
     const raw = await fs.readFile(path.join(dir, filename), "utf8");
     const { data, content } = matter(raw);
     const draft = Boolean(data.draft);
-    if (draft && !opts.includeDrafts) continue;
+    const isTracked = !hasTrackedInfo || tracked.has(filename);
+    // Public blog only shows git-tracked published posts. Admin sees local drafts/untracked files too.
+    if ((!isTracked || draft) && !opts.includeDrafts) continue;
     out.push({
       slug: parsed.slug,
       filename,
       title: typeof data.title === "string" ? data.title : parsed.slug,
       date: typeof data.date === "string" ? data.date : parsed.date,
       draft,
+      tracked: isTracked,
       excerpt: typeof data.excerpt === "string" ? data.excerpt : firstParagraph(content),
     });
   }
@@ -94,7 +114,7 @@ function firstParagraph(md: string): string {
   return m.replace(/[#*_`>\[\]\(\)!]/g, "").slice(0, 240);
 }
 
-export async function getPostBySlug(slug: string): Promise<Post | null> {
+export async function getPostBySlug(slug: string, opts: { includeUntracked?: boolean } = {}): Promise<Post | null> {
   if (!isValidSlug(slug)) return null;
   const dir = postsDir();
   await ensureDir(dir);
@@ -104,6 +124,11 @@ export async function getPostBySlug(slug: string): Promise<Post | null> {
     return p?.slug === slug;
   });
   if (!filename) return null;
+  const tracked = await trackedPostFilenames();
+  const hasTrackedInfo = tracked.size > 0;
+  const isTracked = !hasTrackedInfo || tracked.has(filename);
+  if (!isTracked && !opts.includeUntracked) return null;
+
   const raw = await fs.readFile(path.join(dir, filename), "utf8");
   const parsed = parseFilename(filename)!;
   const { data, content } = matter(raw);
@@ -114,6 +139,7 @@ export async function getPostBySlug(slug: string): Promise<Post | null> {
     title: typeof data.title === "string" ? data.title : parsed.slug,
     date: typeof data.date === "string" ? data.date : parsed.date,
     draft: Boolean(data.draft),
+    tracked: isTracked,
     excerpt: typeof data.excerpt === "string" ? data.excerpt : undefined,
     body: content,
     html,

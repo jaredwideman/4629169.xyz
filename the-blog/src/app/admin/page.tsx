@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { listPosts, todayISO } from "@/lib/posts";
+import DeleteButton from "./DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,11 @@ export default async function AdminHome() {
               <Link href={`/admin/edit/${p.slug}`}>{p.title}</Link>
               {p.draft ? <span className="draft-badge">DRAFT</span> : null}
             </h2>
-            <div className="date">{p.date} · <code style={{ fontSize: 12 }}>{p.filename}</code></div>
+            <div className="date">
+              {p.date} · <code style={{ fontSize: 12 }}>{p.filename}</code>
+              {!p.tracked ? " · local only" : ""}
+              {" · "}<DeleteButton filename={p.filename} title={p.title} tracked={p.tracked} />
+            </div>
           </li>
         ))}
       </ul>
