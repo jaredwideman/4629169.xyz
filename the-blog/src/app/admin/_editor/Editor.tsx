@@ -72,11 +72,60 @@ export default function Editor({ mode, initial }: Props) {
   const [status, setStatus] = useState<string>("");
   const [dragging, setDragging] = useState(false);
   const editorRef = useRef<EditorView | null>(null);
+  const savedRef = useRef({
+    title: initial.title,
+    slug: initial.slug,
+    date: initial.date,
+    body: initial.body,
+    draft: initial.draft,
+    excerpt: initial.excerpt,
+  });
+  const hasUnsavedChanges =
+    title !== savedRef.current.title ||
+    slug !== savedRef.current.slug ||
+    date !== savedRef.current.date ||
+    body !== savedRef.current.body ||
+    draft !== savedRef.current.draft ||
+    excerpt !== savedRef.current.excerpt;
+  const hasUnsavedChangesRef = useRef(hasUnsavedChanges);
+
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges;
+  }, [hasUnsavedChanges]);
 
   // Auto-fill slug from title until user edits the slug field.
   useEffect(() => {
     if (!slugDirty) setSlug(slugify(title));
   }, [title, slugDirty]);
+
+  // Warn if the user tries to leave the editor with unsaved changes.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!hasUnsavedChangesRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+
+    function onDocumentClick(e: MouseEvent) {
+      if (!hasUnsavedChangesRef.current || e.defaultPrevented) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const target = e.target instanceof Element ? e.target.closest("a[href]") : null;
+      if (!(target instanceof HTMLAnchorElement)) return;
+      if (target.target && target.target !== "_self") return;
+      if (target.href === window.location.href) return;
+      if (!confirm("You have unsaved changes. Leave this page and discard them?")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+
+    window.addEventListener("beforeunload", onBeforeUnload);
+    document.addEventListener("click", onDocumentClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      document.removeEventListener("click", onDocumentClick, true);
+    };
+  }, []);
 
   // Cmd/Ctrl-S to save
   useEffect(() => {
@@ -111,6 +160,9 @@ export default function Editor({ mode, initial }: Props) {
       setStatus(json.error || `Failed (${res.status})`);
       return;
     }
+    const savedDraft = publish ? false : draft;
+    savedRef.current = { title, slug, date, body, draft: savedDraft, excerpt };
+    hasUnsavedChangesRef.current = false;
     setStatus(json.gitWarning ? `Saved (git: ${json.gitWarning})` : (publish ? "Published ✓" : "Saved ✓"));
     if (publish) setDraft(false);
     if (mode === "new") {
