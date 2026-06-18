@@ -45,17 +45,23 @@ function escapeHtml(s: string) {
 }
 
 function inlineCaptionMarkdown(s: string) {
-  return escapeHtml(s).replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+  return escapeHtml(s)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 }
 
 function expandCaptionImages(md: string) {
-  return md.replace(/^!\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*$/gm, (_match, caption: string, src: string, liveSrc?: string) => {
-    const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[<>]/g, "");
-    const img = liveSrc
-      ? `<span class="live-photo"><img src="${escapeHtml(src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
-      : `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />`;
+  return md.replace(/^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/gm, (_match, marker: string, caption: string, src: string, liveSrc: string | undefined, tags: string, date: string) => {
+    const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").replace(/[<>]/g, "");
+    const media = marker === "@"
+      ? `<video src="${escapeHtml(src)}" controls playsinline data-auto-video></video>`
+      : liveSrc
+        ? `<span class="live-photo"><img src="${escapeHtml(src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
+        : `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" />`;
     const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
-    return `<figure>\n${img}${captionHtml}\n</figure>`;
+    const tagHtml = tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).map((t) => `<span>#${escapeHtml(t)}</span>`).join(" ");
+    return `<figure data-date="${escapeHtml(date.trim())}">\n${media}${captionHtml}\n<div class="timeline-tags">${tagHtml}</div>\n</figure>`;
   });
 }
 
@@ -292,13 +298,9 @@ export default function Editor({ mode, initial }: Props) {
 
   function mediaMarkup(file: File, url: string) {
     const isVideo = file.type.startsWith("video/");
-    // Images use normal markdown alt text as an optional caption:
-    //   ![caption here](/path/to/image.jpg)
-    // Leave it blank for no caption:
-    //   ![](/path/to/image.jpg)
     return isVideo
-      ? `\n<video src="${url}" autoplay muted loop playsinline data-auto-video></video>\n`
-      : `\n![](${url})\n`;
+      ? `\n@[caption](${url})<tag>{${date}}\n`
+      : `\n![caption](${url})<tag>{${date}}\n`;
   }
 
   async function handleFiles(files: FileList | File[]) {
@@ -306,7 +308,7 @@ export default function Editor({ mode, initial }: Props) {
       const uploaded = await uploadFile(file);
       if (!uploaded) continue;
       if (uploaded.liveUrl) {
-        insertAtCursor(`\n![](${uploaded.url} "live:${uploaded.liveUrl}")\n`);
+        insertAtCursor(`\n![caption](${uploaded.url} "live:${uploaded.liveUrl}")<tag>{${date}}\n`);
       } else {
         insertAtCursor(mediaMarkup(file, uploaded.url));
       }
@@ -414,7 +416,7 @@ export default function Editor({ mode, initial }: Props) {
       </div>
 
       <p style={{ color: "var(--muted)", fontSize: 12, marginTop: 12 }}>
-        Drag-drop images or videos anywhere in the editor to upload &amp; insert. Cmd/Ctrl-S saves.
+        Drag-drop images or videos anywhere in the editor to upload &amp; insert timeline syntax. Use ![caption](image)&lt;tag&gt;{date} or @[caption](video)&lt;tag&gt;{date}. Cmd/Ctrl-S saves.
       </p>
     </div>
   );

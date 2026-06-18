@@ -1,14 +1,20 @@
 import Link from "next/link";
-import { listPosts } from "@/lib/posts";
 import { getSession } from "@/lib/auth";
+import { listTimelineItems, normalizeTag } from "@/lib/timeline";
+import TimelineClient from "./TimelineClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function BlogIndex() {
+type Props = { searchParams: Promise<{ tags?: string; tag?: string }> };
+
+export default async function BlogIndex({ searchParams }: Props) {
   const session = await getSession();
-  const posts = await listPosts({ includeDrafts: !!session });
+  const params = await searchParams;
+  const selectedTags = (params.tags || params.tag || "").split(",").map(normalizeTag).filter(Boolean);
+  const page = await listTimelineItems({ includeDrafts: !!session, tags: selectedTags, limit: 12 });
+
   return (
-    <div className="container">
+    <div className="container timeline-container">
       <header className="site">
         <h1><Link href="/">Blog</Link></h1>
         <nav>
@@ -16,22 +22,7 @@ export default async function BlogIndex() {
           {session ? <Link href="/admin">admin</Link> : null}
         </nav>
       </header>
-      {posts.length === 0 ? (
-        <p style={{ color: "var(--muted)" }}>No posts yet.</p>
-      ) : (
-        <ul className="posts">
-          {posts.map((p) => (
-            <li key={p.filename}>
-              <h2>
-                <Link href={`/${p.slug}`}>{p.title}</Link>
-                {p.draft ? <span className="draft-badge">DRAFT</span> : null}
-              </h2>
-              <div className="date">{p.date}</div>
-              {p.excerpt ? <div className="excerpt">{p.excerpt}</div> : null}
-            </li>
-          ))}
-        </ul>
-      )}
+      <TimelineClient initialItems={page.items} initialCursor={page.nextCursor} allTags={page.tags} selectedTags={selectedTags} />
     </div>
   );
 }

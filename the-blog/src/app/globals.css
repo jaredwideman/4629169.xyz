@@ -59,6 +59,26 @@ article.post blockquote {
 article.post p { line-height: 1.7; }
 article.post hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
 
+.timeline-container { max-width: 860px; }
+.timeline-toolbar { position: sticky; top: 0; z-index: 5; background: rgba(250,250,250,.94); backdrop-filter: blur(8px); padding: 10px 0 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.timeline-toolbar .autoplay-toggle { border: 1px solid var(--border); border-radius: 999px; background: #fff; padding: 5px 10px; margin-bottom: 10px; cursor: pointer; }
+.timeline-toolbar .autoplay-toggle.is-on { color: #168a2f; }
+.timeline-toolbar .autoplay-toggle.is-off { color: #c01818; }
+.tag-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-filter button { border: 1px solid var(--border); border-radius: 999px; background: #fff; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.tag-filter button.active { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tag-filter button.clear { color: #b00020; }
+.tag-filter span { opacity: .65; font-size: 11px; }
+.timeline { overflow-anchor: none; }
+.timeline-card { min-height: 520px; margin: 0 0 42px; padding-bottom: 42px; border-bottom: 1px solid var(--border); }
+.timeline-card time { display: block; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.timeline-card figure { margin: 0; }
+.timeline-card img, .timeline-card video { display: block; max-width: 100%; max-height: 78vh; width: auto; height: auto; margin: 0 auto; border-radius: 8px; background: #eee; }
+.timeline-card video { width: 100%; }
+.timeline-card figcaption { max-width: 680px; margin: 12px auto 0; color: #333; font-size: 15px; line-height: 1.55; text-align: center; }
+.timeline-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+.timeline-sentinel, .empty { color: var(--muted); text-align: center; padding: 24px; }
+
 ul.posts { list-style: none; padding: 0; margin: 0; }
 ul.posts li { padding: 16px 0; border-bottom: 1px solid var(--border); }
 ul.posts li:last-child { border-bottom: none; }
