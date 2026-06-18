@@ -20,24 +20,6 @@ jobs:
           Copy-Item -Path $source -Destination $dest -Recurse -Force
           Write-Host "Deployed static site to $dest"
 
-      - name: Remove The Buckhorner (idempotent cleanup)
-        shell: powershell
-        run: |
-          $taskName = "The Buckhorner"
-          if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-            Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-            Write-Host "Removed scheduled task: $taskName"
-          }
-          Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
-            $_.CommandLine -like "*the-buckhorner*"
-          } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-          $appDir = "C:\apps\the-buckhorner"
-          if (Test-Path $appDir) {
-            Remove-Item -Path $appDir -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Host "Removed $appDir"
-          }
-
       - name: Configure nginx proxy for /blog/
         shell: powershell
         run: |
