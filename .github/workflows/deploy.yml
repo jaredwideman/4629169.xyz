@@ -120,6 +120,18 @@ jobs:
           if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
           $LASTEXITCODE = 0
 
+          $magickPath = ""
+          $magickCmd = Get-Command magick -ErrorAction SilentlyContinue
+          if ($magickCmd) {
+            $magickPath = $magickCmd.Source
+          } else {
+            $magickExe = Get-ChildItem "C:\Program Files" -Directory -Filter "ImageMagick*" -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending |
+              Select-Object -First 1 |
+              ForEach-Object { Join-Path $_.FullName "magick.exe" }
+            if ($magickExe -and (Test-Path $magickExe)) { $magickPath = $magickExe }
+          }
+
           $envLines = @(
             "ALLOWED_EMAILS=$($env:ALLOWED_EMAILS)",
             "SESSION_SECRET=$($env:SESSION_SECRET)",
@@ -129,6 +141,7 @@ jobs:
             "BLOG_CONTENT_DIR=$contentDir",
             "UPLOADS_DIR=C:\apps\blog-media\uploads",
             "LIBHEIF_SECURITY_LIMITS=off",
+            "IMAGEMAGICK_PATH=$magickPath",
             "BLOG_GIT_PAT=$($env:BLOG_GIT_PAT)",
             "GIT_AUTHOR_NAME=Blog Bot",
             "GIT_AUTHOR_EMAIL=blog-bot@4629169.xyz",

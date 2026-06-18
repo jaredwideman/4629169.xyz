@@ -44,18 +44,51 @@ export function uploadsDir(): string {
   return path.resolve(process.cwd(), "public", "uploads");
 }
 
+async function magickCommand(): Promise<string> {
+  const configured = process.env.IMAGEMAGICK_PATH;
+  if (configured) return configured;
+
+  const candidates = [
+    "magick",
+    "C:\\Program Files\\ImageMagick-7.1.1-Q16-HDRI\\magick.exe",
+    "C:\\Program Files\\ImageMagick-7.1.1-Q16\\magick.exe",
+  ];
+  for (const candidate of candidates) {
+    try {
+      await execFileAsync(candidate, ["-version"], { timeout: 10000 });
+      return candidate;
+    } catch {}
+  }
+
+  // Last chance: find whatever winget installed.
+  if (process.platform === "win32") {
+    try {
+      const { stdout } = await execFileAsync("powershell", [
+        "-NoProfile",
+        "-Command",
+        "Get-ChildItem 'C:\\Program Files' -Directory -Filter 'ImageMagick*' | Sort-Object Name -Descending | Select-Object -First 1 | ForEach-Object { Join-Path $_.FullName 'magick.exe' }",
+      ], { timeout: 10000 });
+      const found = stdout.trim();
+      if (found) return found;
+    } catch {}
+  }
+
+  throw new Error("ImageMagick magick.exe not found. Install ImageMagick or set IMAGEMAGICK_PATH.");
+}
+
 async function convertHeicWithMagick(buf: Buffer, dir: string, id: string): Promise<{ jpg: Buffer; gif?: Buffer }> {
+  const magick = await magickCommand();
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "blog-heic-"));
   const input = path.join(tmp, `${id}.heic`);
   const jpgPath = path.join(tmp, `${id}.jpg`);
   const gifPath = path.join(tmp, `${id}.gif`);
   try {
     await fs.writeFile(input, buf);
-    await execFileAsync("magick", [input + "[0]", "-auto-orient", "-quality", "88", jpgPath], { timeout: 120000 });
+    await execFileAsync(magick, [input + "[0]", "-auto-orient", "-quality", "88", jpgPath], { timeout: 120000 });
     const jpg = await fs.readFile(jpgPath);
     let gif: Buffer | undefined;
     try {
-      await execFileAsync("magick", [input, "-auto-orient", "-coalesce", "-loop", "0", gifPath], { timeout: 120000 });
+      await execFileAsync(magick, [input, "-auto-orient", "-coalesce", "-loop", "0", gifPath], { timeout: 120000 });
       gif = await fs.readFile(gifPath);
     } catch {
       // Still-only HEIC or unsupported animation. No play button.
@@ -82,59 +115,25 @@ export async function saveUpload(file: File): Promise<{ url: string; relPath: st
 
   if (mime === "image/heic" || mime === "image/heif") {
     try {
-      // iPhone HEIC/Live Photo files can exceed libheif's conservative default
-      // reference limits. This app only accepts authenticated uploads, so allow
-      // libheif to process larger-but-legitimate personal media files.
-      process.env.LIBHEIF_SECURITY_LIMITS = process.env.LIBHEIF_SECURITY_LIMITS || "off";
-      const { default: sharp } = await import("sharp");
-      const image = sharp(buf, { animated: true });
-      const meta = await image.metadata();
-      const jpg = await sharp(buf, { page: 0 }).rotate().jpeg({ quality: 88 }).toBuffer();
+      const converted = await convertHeicWithMagick(buf, dir, id);
       const jpgFilename = `${id}.jpg`;
-      await fs.writeFile(path.join(dir, jpgFilename), jpg);
-
+      await fs.writeFile(path.join(dir, jpgFilename), converted.jpg);
       let liveUrl: string | undefined;
-      if ((meta.pages || 1) > 1) {
-        try {
-          const gif = await sharp(buf, { animated: true }).rotate().gif().toBuffer();
-          const gifFilename = `${id}.gif`;
-          await fs.writeFile(path.join(dir, gifFilename), gif);
-          liveUrl = `${basePath}/uploads/${yyyy}/${mm}/${gifFilename}`;
-        } catch {
-          // Some HEICs decode as stills only. That's fine: no play button.
-        }
+      if (converted.gif) {
+        const gifFilename = `${id}.gif`;
+        await fs.writeFile(path.join(dir, gifFilename), converted.gif);
+        liveUrl = `${basePath}/uploads/${yyyy}/${mm}/${gifFilename}`;
       }
-
       return {
         url: `${basePath}/uploads/${yyyy}/${mm}/${jpgFilename}`,
         relPath: `${yyyy}/${mm}/${jpgFilename}`,
-        bytes: jpg.length,
+        bytes: converted.jpg.length,
         mime: "image/jpeg",
         liveUrl,
       };
     } catch (e) {
-      try {
-        const converted = await convertHeicWithMagick(buf, dir, id);
-        const jpgFilename = `${id}.jpg`;
-        await fs.writeFile(path.join(dir, jpgFilename), converted.jpg);
-        let liveUrl: string | undefined;
-        if (converted.gif) {
-          const gifFilename = `${id}.gif`;
-          await fs.writeFile(path.join(dir, gifFilename), converted.gif);
-          liveUrl = `${basePath}/uploads/${yyyy}/${mm}/${gifFilename}`;
-        }
-        return {
-          url: `${basePath}/uploads/${yyyy}/${mm}/${jpgFilename}`,
-          relPath: `${yyyy}/${mm}/${jpgFilename}`,
-          bytes: converted.jpg.length,
-          mime: "image/jpeg",
-          liveUrl,
-        };
-      } catch (fallbackError) {
-        const msg = e instanceof Error ? e.message : String(e);
-        const fallbackMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        throw new Error(`Could not convert HEIC/HEIF image: ${msg}; ImageMagick fallback also failed: ${fallbackMsg}`);
-      }
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Could not convert HEIC/HEIF image with ImageMagick: ${msg}`);
     }
   }
 
