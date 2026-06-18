@@ -117,6 +117,7 @@ jobs:
             "MAIL_FROM=$($env:MAIL_FROM)",
             "PUBLIC_URL=https://4629169.xyz",
             "BLOG_CONTENT_DIR=$contentDir",
+            "UPLOADS_DIR=C:\apps\blog-media\uploads",
             "BLOG_GIT_PAT=$($env:BLOG_GIT_PAT)",
             "GIT_AUTHOR_NAME=Blog Bot",
             "GIT_AUTHOR_EMAIL=blog-bot@4629169.xyz",
@@ -125,6 +126,15 @@ jobs:
             "NEXT_PUBLIC_BASE_PATH=/blog"
           )
           Set-Content -Path "$appDir\.env.local" -Value ($envLines -join "`r`n") -NoNewline
+          $mediaDir = "C:\apps\blog-media\uploads"
+          New-Item -ItemType Directory -Path $mediaDir -Force | Out-Null
+          # One-time migration for uploads that were saved under the app directory before media was split out.
+          $oldUploads = "$appDir\public\uploads"
+          if (Test-Path $oldUploads) {
+            robocopy $oldUploads $mediaDir /E /NFL /NDL /NJH /NJS
+            if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+            $LASTEXITCODE = 0
+          }
 
           Set-Location $appDir
           $env:NEXT_PUBLIC_BASE_PATH = "/blog"

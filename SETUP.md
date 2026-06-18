@@ -65,4 +65,4 @@ The Action will:
 ## Backups
 
 - `posts/` lives in git — already backed up.
-- `C:\apps\the-blog\public\uploads\` is **not** in git. Set up periodic copies to OneDrive / external drive / S3 once you start uploading things you care about.
+- `C:\apps\blog-media\uploads\` is **not** in git. This keeps photos/videos on your Windows PC, separate from app deploys.

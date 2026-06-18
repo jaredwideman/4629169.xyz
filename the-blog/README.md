@@ -25,4 +25,4 @@ If `RESEND_API_KEY` isn't set, magic links are logged to the server console.
 ## Storage
 
 - Posts: `posts/YYYY-MM-DD-slug.md` (frontmatter via gray-matter) under `BLOG_CONTENT_DIR`.
-- Uploads: `public/uploads/YYYY/MM/<id>.<ext>` (NOT in git). Override with `UPLOADS_DIR`.
+- Uploads: `UPLOADS_DIR/YYYY/MM/<id>.<ext>` (NOT in git). On the Windows server this is `C:\apps\blog-media\uploads`, served dynamically at `/blog/uploads/...`.

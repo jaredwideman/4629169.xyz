@@ -42,9 +42,22 @@ export async function commitAndPush(message: string, files: string[]): Promise<{
     if (!found) return { ok: false, error: `remote ${remote} not configured` };
     const authedUrl = authenticatedRemoteUrl(found.refs.fetch);
 
-    // Pull latest with rebase to avoid conflicts.
+    // Pull latest with rebase to avoid conflicts. The editor saves the markdown
+    // file before calling us, so the working tree may already be dirty; stash it
+    // temporarily so rebase can run, then restore and commit the saved changes.
+    const preStatus = await g.status();
+    const hadLocalChanges =
+      preStatus.files.length > 0 || preStatus.created.length > 0 || preStatus.deleted.length > 0;
+    if (hadLocalChanges) {
+      await g.raw(["stash", "push", "--include-untracked", "--message", "blog-editor-publish"]);
+    }
+
     await g.fetch(authedUrl, branch);
     await g.raw(["rebase", `FETCH_HEAD`]);
+
+    if (hadLocalChanges) {
+      await g.raw(["stash", "pop"]);
+    }
 
     await g.add(files);
     const status = await g.status();
