@@ -19,6 +19,7 @@ type Props = {
 
 type ValidationMessage = { line: number; level: "error" | "warning"; message: string };
 type TimelineSourceEntry = { line: string; date: string; originalIndex: number };
+type ParsedMediaSource = { src: string; positionX?: number; positionY?: number };
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const MEDIA_RE = /^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/;
@@ -43,6 +44,22 @@ function normalizeTag(tag: string) {
   return tag.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+function clampPercent(n: number) {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function parseMediaSourcePart(part: string): ParsedMediaSource {
+  const clean = part.trim();
+  const match = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
+  if (!match) return { src: clean };
+  return { src: match[1], positionX: clampPercent(Number(match[2])), positionY: clampPercent(Number(match[3])) };
+}
+
+function formatMediaSourcePart(part: ParsedMediaSource) {
+  if (part.positionX === undefined || part.positionY === undefined) return part.src;
+  return `${part.src}@${clampPercent(part.positionX)},${clampPercent(part.positionY)}`;
+}
+
 function isValidDate(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const d = new Date(`${date}T00:00:00.000Z`);
@@ -51,22 +68,34 @@ function isValidDate(date: string) {
 
 function expandTimelineMarkdown(md: string) {
   let previousDate = "";
-  return md.replace(/^\s*([!@])\[(.*)\]\(([^\s)]+)(?:\s+"live:([^"]+)")?\)\s*<([^>]*)>\s*\{([^}]+)\}\s*$/gm, (_match, marker: string, caption: string, src: string, liveSrc: string | undefined, tags: string, date: string) => {
-    const cleanDate = date.trim();
+  return md.split(/\r?\n/).map((line, lineIndex) => {
+    const match = line.match(MEDIA_RE);
+    if (!match) return line;
+    const marker = match[1];
+    const caption = match[2];
+    const src = match[3];
+    const liveSrc = match[4];
+    const tags = match[5];
+    const cleanDate = match[6].trim();
     const alt = caption.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`~]/g, "").replace(/[<>]/g, "");
-    const mediaParts = marker === "@" ? [src] : src.split("|").map((part) => part.trim()).filter(Boolean);
-    const media = mediaParts.map((part) => marker === "@"
-      ? `<video src="${escapeHtml(part)}" playsinline data-auto-video></video>`
-      : liveSrc && mediaParts.length === 1
-        ? `<span class="live-photo"><img src="${escapeHtml(part)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" /><span class="live-badge">▶</span></span>`
-        : `<img src="${escapeHtml(part)}" alt="${escapeHtml(alt)}" />`).join("");
+    const mediaParts = marker === "@" ? [{ src }] : src.split("|").map(parseMediaSourcePart).filter((part) => Boolean(part.src));
+    const media = mediaParts.map((part, mediaIndex) => {
+      const x = part.positionX ?? 50;
+      const y = part.positionY ?? 50;
+      const cropAttrs = `data-crop-line="${lineIndex}" data-crop-index="${mediaIndex}" data-crop-x="${x}" data-crop-y="${y}" draggable="false" style="object-position:${x}% ${y}%"`;
+      return marker === "@"
+        ? `<video src="${escapeHtml(part.src)}" playsinline data-auto-video></video>`
+        : liveSrc && mediaParts.length === 1
+          ? `<span class="live-photo"><img src="${escapeHtml(part.src)}" data-live-src="${escapeHtml(liveSrc)}" alt="${escapeHtml(alt)}" ${cropAttrs} /><span class="live-badge">▶</span></span>`
+          : `<img src="${escapeHtml(part.src)}" alt="${escapeHtml(alt)}" ${cropAttrs} />`;
+    }).join("");
     const captionHtml = caption.trim() ? `\n<figcaption>${inlineCaptionMarkdown(caption)}</figcaption>` : "";
     const tagHtml = tags.split(",").map(normalizeTag).filter(Boolean).map((t) => `<span>${escapeHtml(t)}</span>`).join(" ");
     const showDate = cleanDate !== previousDate;
     const cls = `timeline-card preview-card ${showDate ? "" : "date-continuation"}`;
     previousDate = cleanDate;
     return `<article class="${cls}">${showDate ? `<time>${escapeHtml(cleanDate)}</time>` : ""}<figure>\n<div class="timeline-media-grid media-count-${Math.min(mediaParts.length, 6)} remainder-${mediaParts.length % 3}">${media}</div>${captionHtml}\n<div class="timeline-tags">${tagHtml}</div>\n</figure></article>`;
-  });
+  }).join("\n");
 }
 
 function normalizeTimelineSourceLine(line: string): string | null {
@@ -74,7 +103,8 @@ function normalizeTimelineSourceLine(line: string): string | null {
   if (!match) return null;
   const tags = Array.from(new Set(match[5].split(",").map(normalizeTag).filter(Boolean))).sort().join(",");
   const live = match[4] ? ` "live:${match[4].trim()}"` : "";
-  return `${match[1]}[${match[2].trim()}](${match[3].trim()}${live})<${tags}>{${match[6].trim()}}`;
+  const src = match[3].split("|").map((part) => formatMediaSourcePart(parseMediaSourcePart(part))).join("|");
+  return `${match[1]}[${match[2].trim()}](${src}${live})<${tags}>{${match[6].trim()}}`;
 }
 
 function formatTimelineSource(md: string): string {
@@ -246,6 +276,53 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
 
   const previewBody = useMemo(() => formatTimelineSource(body), [body]);
 
+  function updatePreviewCrop(lineIndex: number, mediaIndex: number, x: number, y: number) {
+    const lines = previewBody.split(/\r?\n/);
+    const line = lines[lineIndex];
+    const match = line?.match(MEDIA_RE);
+    if (!match || match[1] !== "!") return;
+    const parts = match[3].split("|").map(parseMediaSourcePart);
+    const part = parts[mediaIndex];
+    if (!part) return;
+    parts[mediaIndex] = { ...part, positionX: clampPercent(x), positionY: clampPercent(y) };
+    const live = match[4] ? ` "live:${match[4].trim()}"` : "";
+    lines[lineIndex] = `${match[1]}[${match[2].trim()}](${parts.map(formatMediaSourcePart).join("|")}${live})<${match[5].trim()}>{${match[6].trim()}}`;
+    setBody(lines.join("\n"));
+  }
+
+  function onPreviewPointerDown(e: React.PointerEvent<HTMLElement>) {
+    const img = (e.target as HTMLElement | null)?.closest?.("img[data-crop-line]") as HTMLImageElement | null;
+    if (!img) return;
+    const targetImg = img;
+    e.preventDefault();
+    const lineIndex = Number(targetImg.dataset.cropLine);
+    const mediaIndex = Number(targetImg.dataset.cropIndex);
+    const start = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      x: Number(targetImg.dataset.cropX || 50),
+      y: Number(targetImg.dataset.cropY || 50),
+    };
+    let latest = { x: start.x, y: start.y };
+    targetImg.classList.add("is-panning");
+
+    function move(ev: PointerEvent) {
+      latest = {
+        x: clampPercent(start.x - ((ev.clientX - start.pointerX) / targetImg.clientWidth) * 100),
+        y: clampPercent(start.y - ((ev.clientY - start.pointerY) / targetImg.clientHeight) * 100),
+      };
+      targetImg.style.objectPosition = `${latest.x}% ${latest.y}%`;
+    }
+    function up() {
+      targetImg.classList.remove("is-panning");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      updatePreviewCrop(lineIndex, mediaIndex, latest.x, latest.y);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  }
+
   return (
     <div className="admin-shell timeline-workbench">
       <div className="admin-bar">
@@ -287,7 +364,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody, months }:
               </ul>
             )}
           </section>
-          <section className="preview-pane source-preview">
+          <section className="preview-pane source-preview" onPointerDown={onPreviewPointerDown}>
             <h2>Preview</h2>
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeRaw]}>{expandTimelineMarkdown(previewBody)}</ReactMarkdown>
           </section>

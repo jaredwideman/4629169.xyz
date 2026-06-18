@@ -184,10 +184,35 @@ function TimelineCard({ item, showDate, sameDateNext }: { item: TimelineItem; sh
   );
 }
 
-function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string } }) {
+function TimelineMedia({ media }: { media: { kind: string; src: string; liveSrc?: string; altText: string; positionX?: number; positionY?: number } }) {
+  const [position, setPosition] = useState({ x: media.positionX ?? 50, y: media.positionY ?? 50 });
+  const style = { objectPosition: `${position.x}% ${position.y}%` };
+
+  function onPointerDown(e: React.PointerEvent<HTMLImageElement>) {
+    const target = e.currentTarget;
+    const start = { pointerX: e.clientX, pointerY: e.clientY, x: position.x, y: position.y };
+    target.setPointerCapture(e.pointerId);
+    target.classList.add("is-panning");
+
+    function move(ev: PointerEvent) {
+      const next = {
+        x: Math.max(0, Math.min(100, start.x - ((ev.clientX - start.pointerX) / target.clientWidth) * 100)),
+        y: Math.max(0, Math.min(100, start.y - ((ev.clientY - start.pointerY) / target.clientHeight) * 100)),
+      };
+      setPosition(next);
+    }
+    function up() {
+      target.classList.remove("is-panning");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  }
+
   if (media.kind === "video") return <video src={media.src} playsInline data-auto-video />;
   if (media.kind === "live-photo") {
-    return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} /><span className="live-badge">▶</span></span>;
+    return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} style={style} onPointerDown={onPointerDown} draggable={false} /><span className="live-badge">▶</span></span>;
   }
-  return <img src={media.src} alt={media.altText} loading="lazy" />;
+  return <img src={media.src} alt={media.altText} loading="lazy" style={style} onPointerDown={onPointerDown} draggable={false} />;
 }

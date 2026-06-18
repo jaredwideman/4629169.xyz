@@ -15,6 +15,8 @@ export type TimelineMedia = {
   src: string;
   liveSrc?: string;
   altText: string;
+  positionX?: number;
+  positionY?: number;
 };
 
 export type TimelineItem = {
@@ -56,6 +58,12 @@ type TimelineSourceEntry = {
   originalIndex: number;
 };
 
+type ParsedMediaSource = {
+  src: string;
+  positionX?: number;
+  positionY?: number;
+};
+
 export function timelineDir(): string {
   return path.join(contentDir(), "timeline");
 }
@@ -92,12 +100,33 @@ export function normalizeTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
+function clampPercent(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+export function parseMediaSourcePart(part: string): ParsedMediaSource {
+  const clean = part.trim();
+  const match = clean.match(/^(.*)@(\d{1,3}),(\d{1,3})$/);
+  if (!match) return { src: clean };
+  return {
+    src: match[1],
+    positionX: clampPercent(Number(match[2])),
+    positionY: clampPercent(Number(match[3])),
+  };
+}
+
+export function formatMediaSourcePart(part: ParsedMediaSource): string {
+  if (part.positionX === undefined || part.positionY === undefined) return part.src;
+  return `${part.src}@${clampPercent(part.positionX)},${clampPercent(part.positionY)}`;
+}
+
 export function normalizeTimelineSourceLine(line: string): string | null {
   const match = line.match(MEDIA_RE);
   if (!match) return null;
   const tags = Array.from(new Set(match[5].split(",").map(normalizeTag).filter(Boolean))).sort().join(",");
   const live = match[4] ? ` "live:${match[4].trim()}"` : "";
-  return `${match[1]}[${match[2].trim()}](${match[3].trim()}${live})<${tags}>{${match[6].trim()}}`;
+  const src = match[3].split("|").map((part) => formatMediaSourcePart(parseMediaSourcePart(part))).join("|");
+  return `${match[1]}[${match[2].trim()}](${src}${live})<${tags}>{${match[6].trim()}}`;
 }
 
 export function formatTimelineSource(markdown: string): string {
@@ -217,11 +246,13 @@ export async function parseTimelineItemsFromMarkdown(input: {
     const altText = stripMarkdownForAlt(captionMarkdown);
     const media: TimelineMedia[] = marker === "@"
       ? [{ kind: "video", src, altText }]
-      : src.split("|").map((part) => part.trim()).filter(Boolean).map((part) => ({
+      : src.split("|").map((part) => parseMediaSourcePart(part)).filter((part) => Boolean(part.src)).map((part) => ({
         kind: liveSrc ? "live-photo" : "image",
-        src: part,
+        src: part.src,
         liveSrc: src.includes("|") ? undefined : liveSrc,
         altText,
+        positionX: part.positionX,
+        positionY: part.positionY,
       }));
     if (media.length === 0) continue;
 

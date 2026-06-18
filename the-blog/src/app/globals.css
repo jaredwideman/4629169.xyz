@@ -80,6 +80,8 @@ article.post hr { border: none; border-top: 1px solid var(--border); margin: 32p
 .timeline-media-grid:not(.media-count-1) { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .timeline-media-grid:not(.media-count-1) > * { grid-column: span 2; width: 100%; min-width: 0; }
 .timeline-media-grid:not(.media-count-1) img, .timeline-media-grid:not(.media-count-1) video { width: 100%; height: 100%; max-height: none; aspect-ratio: 4 / 3; object-fit: cover; }
+.timeline-media-grid:not(.media-count-1) img { cursor: grab; touch-action: none; user-select: none; }
+.timeline-media-grid:not(.media-count-1) img.is-panning { cursor: grabbing; }
 .timeline-media-grid:not(.media-count-1) .live-photo { display: block; position: relative; }
 .timeline-media-grid.remainder-1:not(.media-count-1) > :first-child { grid-column: span 6; }
 .timeline-media-grid.remainder-2:not(.media-count-2) > :nth-child(-n+2), .timeline-media-grid.media-count-2 > * { grid-column: span 3; }
