@@ -76,7 +76,17 @@ async function magickCommand(): Promise<string> {
   throw new Error("ImageMagick magick.exe not found. Install ImageMagick or set IMAGEMAGICK_PATH.");
 }
 
-async function convertHeicWithMagick(buf: Buffer, dir: string, id: string): Promise<{ jpg: Buffer; gif?: Buffer }> {
+async function identifyFrameCount(magick: string, file: string): Promise<number> {
+  try {
+    const { stdout } = await execFileAsync(magick, ["identify", "-format", "%n", file], { timeout: 30000 });
+    const nums = stdout.match(/\d+/g)?.map(Number).filter((n) => Number.isFinite(n)) || [];
+    return Math.max(1, ...nums);
+  } catch {
+    return 1;
+  }
+}
+
+async function convertHeicWithMagick(buf: Buffer, dir: string, id: string): Promise<{ jpg: Buffer; gif?: Buffer; frameCount: number }> {
   const magick = await magickCommand();
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "blog-heic-"));
   const input = path.join(tmp, `${id}.heic`);
@@ -84,22 +94,26 @@ async function convertHeicWithMagick(buf: Buffer, dir: string, id: string): Prom
   const gifPath = path.join(tmp, `${id}.gif`);
   try {
     await fs.writeFile(input, buf);
+    const frameCount = await identifyFrameCount(magick, input);
     await execFileAsync(magick, [input + "[0]", "-auto-orient", "-quality", "88", jpgPath], { timeout: 120000 });
     const jpg = await fs.readFile(jpgPath);
     let gif: Buffer | undefined;
-    try {
-      await execFileAsync(magick, [input, "-auto-orient", "-coalesce", "-loop", "0", gifPath], { timeout: 120000 });
-      gif = await fs.readFile(gifPath);
-    } catch {
-      // Still-only HEIC or unsupported animation. No play button.
+    if (frameCount > 1) {
+      try {
+        await execFileAsync(magick, [input, "-auto-orient", "-coalesce", "-loop", "0", gifPath], { timeout: 120000 });
+        const generatedFrameCount = await identifyFrameCount(magick, gifPath);
+        if (generatedFrameCount > 1) gif = await fs.readFile(gifPath);
+      } catch {
+        // Still-only HEIC or unsupported animation. No play button.
+      }
     }
-    return { jpg, gif };
+    return { jpg, gif, frameCount };
   } finally {
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-export async function saveUpload(file: File): Promise<{ url: string; relPath: string; bytes: number; mime: string; liveUrl?: string }> {
+export async function saveUpload(file: File): Promise<{ url: string; relPath: string; bytes: number; mime: string; liveUrl?: string; heicFrameCount?: number }> {
   const fileLooksHeic = /\.(heic|heif)$/i.test(file.name);
   const mime = file.type || (fileLooksHeic ? "image/heic" : "");
   if (!isAllowedMime(mime)) throw new Error(`Unsupported file type: ${file.type || file.name}`);
@@ -130,6 +144,7 @@ export async function saveUpload(file: File): Promise<{ url: string; relPath: st
         bytes: converted.jpg.length,
         mime: "image/jpeg",
         liveUrl,
+        heicFrameCount: converted.frameCount,
       };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

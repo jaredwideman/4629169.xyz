@@ -129,7 +129,14 @@ export default function Editor({ mode, initial }: Props) {
     const res = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
     const json = await res.json();
     if (!res.ok) { setStatus(json.error || "Upload failed"); return null; }
-    setStatus(`Uploaded ${file.name}`);
+    const heicFrameCount = json.heicFrameCount as number | undefined;
+    if (heicFrameCount && !json.liveUrl) {
+      setStatus(`Uploaded ${file.name} as still image (${heicFrameCount} frame${heicFrameCount === 1 ? "" : "s"}; no playable animation)`);
+    } else if (json.liveUrl) {
+      setStatus(`Uploaded ${file.name} as playable live image`);
+    } else {
+      setStatus(`Uploaded ${file.name}`);
+    }
     return { url: json.url as string, liveUrl: json.liveUrl as string | undefined };
   }
 
