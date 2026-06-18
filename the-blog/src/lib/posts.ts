@@ -146,13 +146,26 @@ export async function getPostBySlug(slug: string, opts: { includeUntracked?: boo
   };
 }
 
+function captionMarkdownImages(html: string): string {
+  // Convention: markdown image alt text is also the caption.
+  // ![caption](/image.jpg) => <figure><img ...><figcaption>caption</figcaption></figure>
+  // ![](/image.jpg) stays as a plain image.
+  return html.replace(
+    /<p><img src="([^"]+)" alt="([^"]+)"\s*><\/p>/g,
+    (_match, src: string, alt: string) => {
+      if (!alt.trim()) return `<p><img src="${src}" alt=""></p>`;
+      return `<figure><img src="${src}" alt="${alt}"><figcaption>${alt}</figcaption></figure>`;
+    },
+  );
+}
+
 export async function renderMarkdown(md: string): Promise<string> {
   const file = await remark()
     .use(remarkGfm)
     .use(remarkBreaks)
     .use(remarkHtml, { sanitize: false })
     .process(md);
-  return String(file);
+  return captionMarkdownImages(String(file));
 }
 
 export type SaveInput = {

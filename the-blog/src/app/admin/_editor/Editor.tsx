@@ -123,15 +123,22 @@ export default function Editor({ mode, initial }: Props) {
     view.focus();
   }
 
+  function mediaMarkup(file: File, url: string) {
+    const isVideo = file.type.startsWith("video/");
+    // Images use normal markdown alt text as an optional caption:
+    //   ![caption here](/path/to/image.jpg)
+    // Leave it blank for no caption:
+    //   ![](/path/to/image.jpg)
+    return isVideo
+      ? `\n<video controls src="${url}"></video>\n`
+      : `\n![](${url})\n`;
+  }
+
   async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {
       const url = await uploadFile(file);
       if (!url) continue;
-      const isVideo = file.type.startsWith("video/");
-      const md = isVideo
-        ? `\n<video controls src="${url}" style="max-width:100%"></video>\n`
-        : `\n![${file.name.replace(/[\[\]]/g, "")}](${url})\n`;
-      insertAtCursor(md);
+      insertAtCursor(mediaMarkup(file, url));
     }
   }
 
@@ -194,7 +201,29 @@ export default function Editor({ mode, initial }: Props) {
         <div className="preview-pane">
           <h1>{title || <span style={{ color: "#bbb" }}>Title</span>}</h1>
           <div className="date" style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>{date}</div>
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} rehypePlugins={[rehypeRaw]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkBreaks]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              p({ children }) {
+                const childArray = Array.isArray(children) ? children : [children];
+                const only = childArray.length === 1 ? childArray[0] : null;
+                if (
+                  only &&
+                  typeof only === "object" &&
+                  "type" in only &&
+                  only.type === "img" &&
+                  "props" in only
+                ) {
+                  const props = only.props as { src?: string; alt?: string };
+                  if (props.alt) {
+                    return <figure><img src={props.src} alt={props.alt} /><figcaption>{props.alt}</figcaption></figure>;
+                  }
+                }
+                return <p>{children}</p>;
+              },
+            }}
+          >
             {body}
           </ReactMarkdown>
         </div>
