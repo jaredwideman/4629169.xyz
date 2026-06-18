@@ -170,6 +170,10 @@ type MediaRow = { indexes: number[]; aspectSum: number };
 function buildSmartRows(aspects: number[]): MediaRow[] {
   if (aspects.length <= 1) return [{ indexes: aspects.map((_a, i) => i), aspectSum: aspects.reduce((a, b) => a + b, 0) || 1 }];
 
+  if (aspects.length === 4) {
+    return [{ indexes: [0, 1, 2, 3], aspectSum: aspects.reduce((a, b) => a + b, 0) }];
+  }
+
   const targetAspect = 2.7;
   const maxPerRow = 3;
   const sums = aspects.reduce<number[]>((acc, aspect) => [...acc, acc[acc.length - 1] + aspect], [0]);
