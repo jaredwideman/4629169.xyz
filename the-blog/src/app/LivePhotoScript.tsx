@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { getAutoplaySetting } from "./AutoplayToggle";
+import { getAutoplaySetting, getMutedSetting } from "./AutoplayToggle";
 
 export default function LivePhotoScript() {
   useEffect(() => {
     let autoplayEnabled = getAutoplaySetting();
+    let mutedEnabled = getMutedSetting();
 
     function videoIsInSafeViewport(video: HTMLVideoElement) {
       const topSafe = window.innerHeight * 0.08;
@@ -54,7 +55,7 @@ export default function LivePhotoScript() {
       const videos = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
       for (const video of videos) {
         video.removeAttribute("controls");
-        video.muted = true;
+        video.muted = mutedEnabled;
         video.loop = true;
         video.autoplay = autoplayEnabled;
         video.playsInline = true;
@@ -96,10 +97,17 @@ export default function LivePhotoScript() {
       updateVideoPlayback();
     }
 
+    function onMutedChange(e: Event) {
+      const custom = e as CustomEvent<{ muted: boolean }>;
+      mutedEnabled = custom.detail.muted;
+      for (const video of videos) video.muted = mutedEnabled;
+    }
+
     document.addEventListener("click", onClick);
     window.addEventListener("scroll", scheduleVideoUpdate, { passive: true });
     window.addEventListener("resize", scheduleVideoUpdate);
     window.addEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
+    window.addEventListener("blog-video-muted-change", onMutedChange as EventListener);
     updateVideoPlayback();
 
     const rescan = window.setTimeout(() => {
@@ -118,6 +126,7 @@ export default function LivePhotoScript() {
       window.removeEventListener("scroll", scheduleVideoUpdate);
       window.removeEventListener("resize", scheduleVideoUpdate);
       window.removeEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
+      window.removeEventListener("blog-video-muted-change", onMutedChange as EventListener);
       window.clearTimeout(rescan);
       observer.disconnect();
       if (raf) window.cancelAnimationFrame(raf);

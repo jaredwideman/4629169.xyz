@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LivePhotoScript from "./LivePhotoScript";
-import AutoplayToggle from "./AutoplayToggle";
+import AutoplayToggle, { MuteToggle } from "./AutoplayToggle";
 import type { TimelineItem } from "@/lib/timeline";
 
 type TagSummary = { tag: string; count: number };
@@ -147,6 +147,7 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
       <div className="timeline-toolbar">
         <div className="tag-filter" aria-label="Filter by tags">
           <AutoplayToggle />
+          <MuteToggle />
           {displayedTags.map(({ tag, count }) => {
             const active = activeTags.includes(tag);
             return <button key={tag} className={active ? "active" : ""} onClick={() => toggleTag(tag)}>{tag} <span>{count}</span></button>;
