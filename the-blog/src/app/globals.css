@@ -78,9 +78,12 @@ ul.posts .excerpt { color: #444; margin-top: 8px; font-size: 14px; line-height: 
 .admin-bar .status { font-size: 12px; color: var(--muted); }
 .admin-bar label { font-size: 13px; display: flex; gap: 6px; align-items: center; }
 
-.editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: calc(100vh - 180px); min-height: 480px; }
-.editor-pane, .preview-pane { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff; }
-.editor-pane .cm-editor { height: 100%; font-size: 14px; }
+.editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: calc(100vh - 180px); min-height: 480px; overflow: hidden; }
+.editor-pane, .preview-pane { min-height: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #fff; }
+.editor-pane { display: flex; }
+.editor-pane .cm-theme { flex: 1; min-height: 0; min-width: 0; }
+.editor-pane .cm-editor { height: 100%; max-height: 100%; font-size: 14px; }
+.editor-pane .cm-scroller { overflow: auto; }
 .preview-pane { padding: 16px 24px; overflow-y: auto; }
 .preview-pane h1 { margin-top: 0; }
 .preview-pane img, .preview-pane video { max-width: 100%; border-radius: 4px; }
