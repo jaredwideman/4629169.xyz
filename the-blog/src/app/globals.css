@@ -66,7 +66,7 @@ article.post hr { border: none; border-top: 1px solid var(--border); margin: 32p
 .tag-filter button:hover { color: var(--fg); text-decoration: underline; }
 .tag-filter button.active { color: var(--fg); font-weight: 600; text-decoration: underline; }
 .tag-filter button.clear { color: #b00020; }
-.tag-filter .autoplay-toggle { font-weight: 700; color: var(--fg); }
+.tag-filter .autoplay-toggle { font-weight: 700; color: #168a2f; }
 .tag-filter .autoplay-toggle.is-off { color: #b00020; }
 .tag-filter span { opacity: .65; font-size: 11px; }
 .timeline { overflow-anchor: none; }
