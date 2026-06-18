@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "node:path";
 import { requireSession } from "@/lib/auth";
 import { contentDir } from "@/lib/posts";
-import { formatTimelineSource, isValidMonth, getTimelineMonth, saveTimelineMonth } from "@/lib/timeline";
+import { formatTimelineSource, getTimelineSource, saveTimelineSource } from "@/lib/timeline";
 import { commitAndPush, gitEnabled } from "@/lib/git";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     await requireSession();
-    const month = req.nextUrl.searchParams.get("month") || "";
-    if (!isValidMonth(month)) return NextResponse.json({ error: "Invalid month" }, { status: 400 });
-    const file = await getTimelineMonth(month);
+    const file = await getTimelineSource();
     return NextResponse.json({ ok: true, ...file });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -25,20 +23,20 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireSession();
     const data = await req.json();
-    const { month, body, push } = data || {};
-    if (typeof month !== "string" || typeof body !== "string" || !isValidMonth(month)) {
+    const { body, push } = data || {};
+    if (typeof body !== "string") {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
     const savedBody = push ? formatTimelineSource(body) : body;
-    const { filename, filepath } = await saveTimelineMonth({ month, body: savedBody });
+    const { filename, filepath } = await saveTimelineSource({ body: savedBody });
     let gitWarning: string | undefined;
     if (push) {
       if (!gitEnabled()) {
         gitWarning = "BLOG_GIT_PAT not set; saved locally only";
       } else {
         const rel = path.relative(contentDir(), filepath).replace(/\\/g, "/");
-        const result = await commitAndPush(`Update timeline ${month}\n\nby ${session.email}`, [rel]);
+        const result = await commitAndPush(`Update timeline\n\nby ${session.email}`, [rel]);
         if (!result.ok) gitWarning = result.error;
       }
     }

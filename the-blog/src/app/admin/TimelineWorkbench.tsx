@@ -11,7 +11,6 @@ import remarkBreaks from "remark-breaks";
 import rehypeRaw from "rehype-raw";
 
 type Props = {
-  initialMonth: string;
   initialBody: string;
 };
 
@@ -165,15 +164,14 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function TimelineWorkbench({ initialMonth, initialBody }: Props) {
+export default function TimelineWorkbench({ initialBody }: Props) {
   const router = useRouter();
-  const [month] = useState(initialMonth);
   const [body, setBody] = useState(initialBody);
   const [status, setStatus] = useState("");
   const [dragging, setDragging] = useState(false);
   const editorRef = useRef<EditorView | null>(null);
-  const savedRef = useRef({ month: initialMonth, body: initialBody });
-  const hasUnsavedChanges = month !== savedRef.current.month || body !== savedRef.current.body;
+  const savedRef = useRef({ body: initialBody });
+  const hasUnsavedChanges = body !== savedRef.current.body;
   const validation = useMemo(() => validateTimelineMarkdown(body), [body]);
   const extensions = useMemo(() => [markdown(), EditorView.lineWrapping], []);
   const knownTags = useMemo(() => {
@@ -196,14 +194,13 @@ export default function TimelineWorkbench({ initialMonth, initialBody }: Props) 
   }, [hasUnsavedChanges]);
 
   async function save({ publish }: { publish: boolean }) {
-    if (!/^\d{4}-\d{2}$/.test(month)) { setStatus("Invalid month"); return; }
     const errors = validation.filter((msg) => msg.level === "error");
     if (publish && errors.length && !confirm(`${errors.length} validation error(s). Publish anyway?`)) return;
     setStatus(publish ? "Publishing…" : "Saving…");
     const res = await fetch(`${BASE}/api/timeline/source`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month, body, push: publish }),
+      body: JSON.stringify({ body, push: publish }),
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -212,7 +209,7 @@ export default function TimelineWorkbench({ initialMonth, initialBody }: Props) 
     }
     const savedBody = typeof json.body === "string" ? json.body : body;
     if (savedBody !== body) setBody(savedBody);
-    savedRef.current = { month, body: savedBody };
+    savedRef.current = { body: savedBody };
     setStatus(json.gitWarning ? `Saved (git: ${json.gitWarning})` : publish ? "Published + sorted ✓" : "Saved ✓");
     router.refresh();
   }
@@ -328,7 +325,6 @@ export default function TimelineWorkbench({ initialMonth, initialBody }: Props) 
     <div className="admin-shell timeline-workbench">
       <div className="admin-bar">
         <strong>Timeline</strong>
-        <span className="status">{month}</span>
         <span className="grow" />
         <span className="status">{status || (hasUnsavedChanges ? "Unsaved changes" : "")}</span>
         <button onClick={() => save({ publish: false })}>Save</button>
