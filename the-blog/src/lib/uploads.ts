@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 
 const ALLOWED_MIME = new Set([
   "image/png",
@@ -9,6 +10,8 @@ const ALLOWED_MIME = new Set([
   "image/webp",
   "image/avif",
   "image/svg+xml",
+  "image/heic",
+  "image/heif",
   "video/mp4",
   "video/webm",
   "video/quicktime",
@@ -21,6 +24,8 @@ const EXT_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
   "image/avif": "avif",
   "image/svg+xml": "svg",
+  "image/heic": "heic",
+  "image/heif": "heif",
   "video/mp4": "mp4",
   "video/webm": "webm",
   "video/quicktime": "mov",
@@ -35,20 +40,56 @@ export function uploadsDir(): string {
   return path.resolve(process.cwd(), "public", "uploads");
 }
 
-export async function saveUpload(file: File): Promise<{ url: string; relPath: string; bytes: number; mime: string }> {
-  if (!isAllowedMime(file.type)) throw new Error(`Unsupported file type: ${file.type}`);
-  const ext = EXT_BY_MIME[file.type] || "bin";
+export async function saveUpload(file: File): Promise<{ url: string; relPath: string; bytes: number; mime: string; liveUrl?: string }> {
+  const fileLooksHeic = /\.(heic|heif)$/i.test(file.name);
+  const mime = file.type || (fileLooksHeic ? "image/heic" : "");
+  if (!isAllowedMime(mime)) throw new Error(`Unsupported file type: ${file.type || file.name}`);
+
   const now = new Date();
   const yyyy = String(now.getUTCFullYear());
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
   const id = nanoid(10);
-  const filename = `${id}.${ext}`;
   const dir = path.join(uploadsDir(), yyyy, mm);
   await fs.mkdir(dir, { recursive: true });
-  const filepath = path.join(dir, filename);
-  const buf = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(filepath, buf);
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+  const buf = Buffer.from(await file.arrayBuffer());
+
+  if (mime === "image/heic" || mime === "image/heif") {
+    try {
+      const image = sharp(buf, { animated: true });
+      const meta = await image.metadata();
+      const jpg = await sharp(buf, { page: 0 }).rotate().jpeg({ quality: 88 }).toBuffer();
+      const jpgFilename = `${id}.jpg`;
+      await fs.writeFile(path.join(dir, jpgFilename), jpg);
+
+      let liveUrl: string | undefined;
+      if ((meta.pages || 1) > 1) {
+        try {
+          const gif = await sharp(buf, { animated: true }).rotate().gif().toBuffer();
+          const gifFilename = `${id}.gif`;
+          await fs.writeFile(path.join(dir, gifFilename), gif);
+          liveUrl = `${basePath}/uploads/${yyyy}/${mm}/${gifFilename}`;
+        } catch {
+          // Some HEICs decode as stills only. That's fine: no play button.
+        }
+      }
+
+      return {
+        url: `${basePath}/uploads/${yyyy}/${mm}/${jpgFilename}`,
+        relPath: `${yyyy}/${mm}/${jpgFilename}`,
+        bytes: jpg.length,
+        mime: "image/jpeg",
+        liveUrl,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Could not convert HEIC/HEIF image: ${msg}`);
+    }
+  }
+
+  const ext = EXT_BY_MIME[mime] || "bin";
+  const filename = `${id}.${ext}`;
+  await fs.writeFile(path.join(dir, filename), buf);
   const url = `${basePath}/uploads/${yyyy}/${mm}/${filename}`;
-  return { url, relPath: `${yyyy}/${mm}/${filename}`, bytes: buf.length, mime: file.type };
+  return { url, relPath: `${yyyy}/${mm}/${filename}`, bytes: buf.length, mime };
 }

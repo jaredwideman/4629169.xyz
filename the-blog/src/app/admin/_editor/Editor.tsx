@@ -130,35 +130,7 @@ export default function Editor({ mode, initial }: Props) {
     const json = await res.json();
     if (!res.ok) { setStatus(json.error || "Upload failed"); return null; }
     setStatus(`Uploaded ${file.name}`);
-    return json.url as string;
-  }
-
-  function isHeic(file: File) {
-    return /\.(heic|heif)$/i.test(file.name) || /image\/(heic|heif)/i.test(file.type);
-  }
-
-  async function convertHeic(file: File, toType: "image/jpeg" | "image/gif") {
-    const { default: heic2any } = await import("heic2any");
-    const result = await heic2any({ blob: file, toType, quality: 0.9 });
-    const blob = Array.isArray(result) ? result[0] : result;
-    const ext = toType === "image/gif" ? "gif" : "jpg";
-    const base = file.name.replace(/\.(heic|heif)$/i, "");
-    return new File([blob], `${base}.${ext}`, { type: toType });
-  }
-
-  async function uploadHeic(file: File) {
-    setStatus(`Converting ${file.name}…`);
-    const still = await convertHeic(file, "image/jpeg");
-    const stillUrl = await uploadFile(still);
-    if (!stillUrl) return null;
-
-    try {
-      const animated = await convertHeic(file, "image/gif");
-      const animatedUrl = await uploadFile(animated);
-      return { stillUrl, animatedUrl };
-    } catch {
-      return { stillUrl, animatedUrl: null };
-    }
+    return { url: json.url as string, liveUrl: json.liveUrl as string | undefined };
   }
 
   function insertAtCursor(text: string) {
@@ -188,16 +160,13 @@ export default function Editor({ mode, initial }: Props) {
 
   async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {
-      if (isHeic(file)) {
-        const uploaded = await uploadHeic(file);
-        if (!uploaded) continue;
-        const title = uploaded.animatedUrl ? ` "live:${uploaded.animatedUrl}"` : "";
-        insertAtCursor(`\n![](${uploaded.stillUrl}${title})\n`);
-        continue;
+      const uploaded = await uploadFile(file);
+      if (!uploaded) continue;
+      if (uploaded.liveUrl) {
+        insertAtCursor(`\n![](${uploaded.url} "live:${uploaded.liveUrl}")\n`);
+      } else {
+        insertAtCursor(mediaMarkup(file, uploaded.url));
       }
-      const url = await uploadFile(file);
-      if (!url) continue;
-      insertAtCursor(mediaMarkup(file, url));
     }
   }
 
