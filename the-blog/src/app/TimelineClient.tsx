@@ -43,6 +43,7 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   const [loading, setLoading] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const requestIdRef = useRef(0);
+  const loadingRef = useRef(false);
 
   const activeTagsKey = tagsKey(activeTags);
 
@@ -57,6 +58,7 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
   const applyFilter = useCallback(async (tags: string[], updateUrl = true) => {
     const sorted = [...tags].sort();
     const requestId = ++requestIdRef.current;
+    loadingRef.current = true;
     setLoading(true);
     setActiveTags(sorted);
     if (updateUrl) writeQueryTags(sorted);
@@ -68,12 +70,16 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
       setAvailableTags(json.tags);
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
     } finally {
-      if (requestId === requestIdRef.current) setLoading(false);
+      if (requestId === requestIdRef.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   }, [fetchPage]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loading) return;
+    if (!nextCursor || loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     const json = await fetchPage(activeTags, nextCursor);
     setItems((existing) => {
@@ -82,8 +88,9 @@ export default function TimelineClient({ initialItems, initialCursor, allTags, s
     });
     setNextCursor(json.nextCursor);
     setAvailableTags(json.tags);
+    loadingRef.current = false;
     setLoading(false);
-  }, [activeTags, fetchPage, loading, nextCursor]);
+  }, [activeTags, fetchPage, nextCursor]);
 
   useEffect(() => {
     const onPopState = () => applyFilter(readQueryTags(), false);

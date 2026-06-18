@@ -296,6 +296,22 @@ function compareItems(a: TimelineItem, b: TimelineItem): number {
   return a.sourceLine - b.sourceLine;
 }
 
+function dedupeTimelineItems(items: TimelineItem[]): TimelineItem[] {
+  const seen = new Set<string>();
+  const deduped: TimelineItem[] = [];
+  for (const item of items) {
+    // Same life event can accidentally exist in multiple month files after admin
+    // edits/deploy rebases. Treat date + caption + media URLs as the identity,
+    // but keep the first sorted version so newer month/source edits win.
+    const mediaKey = item.media.map((m) => m.src).join("|");
+    const key = `${item.date}\n${item.captionMarkdown.trim()}\n${mediaKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
 export async function listTimelineItems(opts: {
   includeDrafts?: boolean;
   tags?: string[];
@@ -310,7 +326,7 @@ export async function listTimelineItems(opts: {
     sourceTitle: month.month,
   })));
 
-  const all = nested.flat().sort(compareItems);
+  const all = dedupeTimelineItems(nested.flat().sort(compareItems));
   const selectedTags = (opts.tags || []).map(normalizeTag).filter(Boolean);
   const filtered = all.filter((item) => matchesTags(item, selectedTags));
   const tagCounts = new Map<string, number>();
