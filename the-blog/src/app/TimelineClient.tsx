@@ -276,7 +276,7 @@ function TimelineMedia({ media, index, onImageLoad, crop }: { media: CardMedia; 
     window.addEventListener("pointerup", up, { once: true });
   }
 
-  if (media.kind === "video") return <video src={media.src} playsInline data-auto-video data-volume={media.volume ?? 100} />;
+  if (media.kind === "video") return <video src={media.src} playsInline muted loop autoPlay preload="metadata" data-auto-video data-volume={media.volume ?? 100} />;
   if (media.kind === "live-photo") {
     return <span className="live-photo"><img src={media.src} data-live-src={media.liveSrc} alt={media.altText} style={style} onPointerDown={onPointerDown} onLoad={(e) => onImageLoad?.(index, e.currentTarget)} draggable={false} /><span className="live-badge">▶</span></span>;
   }
