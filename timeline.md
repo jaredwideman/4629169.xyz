@@ -1,6 +1,6 @@
 ![Our friend, Stefan came to visit us and his family from New York. We managed to take zero pictures while he was here because we were too busy living in the moment Jared guess. The weather was only so-so, so we didn't get to take him down the lazy river, but we ate lots of food and chatted about life for most of the visit! We also got the sauna up to 100 for him. (From left to right: Stef, Jared, Jen)](/blog/uploads/2026/06/yEXfkPwU5v.jpg)<buckhorn,friends,jared,jen>{2026-06-15}
 
-![We ordered a 1 0-ft stock tank pool and then began the arduous process of getting it set up so it wasn't an algae-soup container. This meant running TECK90 up on top of the rock because this big bucket wasn't not going up in nature. Here it is set up with pump working (finally!)](/blog/uploads/2026/06/FskQhTzpl-.jpg)<backyard,buckhorn,jared,pickles>{2026-06-14}
+![We ordered a 10-ft stock tank pool and then began the arduous process of getting it set up so it wasn't an algae-soup container. This meant running TECK90 up on top of the rock because this big bucket wasn't not going up in nature. Here it is set up with pump working (finally!)](/blog/uploads/2026/06/FskQhTzpl-.jpg)<backyard,buckhorn,jared,pickles>{2026-06-14}
 
 @[We took Pickles to swim at Trent U after getting pool filter sand and sitting on a patio, before heading to golf.](/blog/uploads/2026/06/bnZPXFLOkS.mp4@v50)<activities,jared,jen,peterborough,pickles,trent>{2026-06-13}
 
