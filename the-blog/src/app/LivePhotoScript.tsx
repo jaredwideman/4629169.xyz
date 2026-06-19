@@ -3,6 +3,51 @@
 import { useEffect } from "react";
 import { getAutoplaySetting, getMutedSetting, setMutedSetting } from "./AutoplayToggle";
 
+// Shared WebAudio graph so per-video gain works on iOS (Mobile Safari ignores
+// HTMLMediaElement.volume but respects GainNode attenuation).
+let sharedAudioContext: AudioContext | null = null;
+const videoGainGraphs = new WeakMap<HTMLVideoElement, GainNode>();
+
+function getAudioContext(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  const Ctx: typeof AudioContext | undefined =
+    window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctx) return null;
+  if (!sharedAudioContext) {
+    try {
+      sharedAudioContext = new Ctx();
+    } catch {
+      return null;
+    }
+  }
+  return sharedAudioContext;
+}
+
+function ensureVideoGain(video: HTMLVideoElement): GainNode | null {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  const existing = videoGainGraphs.get(video);
+  if (existing) return existing;
+  try {
+    const source = ctx.createMediaElementSource(video);
+    const gain = ctx.createGain();
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    videoGainGraphs.set(video, gain);
+    return gain;
+  } catch {
+    return null;
+  }
+}
+
+function applyVideoVolume(video: HTMLVideoElement) {
+  const target = Math.max(0, Math.min(100, Number(video.dataset.volume || 100))) / 100;
+  // Desktop browsers honor this; iOS ignores it.
+  video.volume = target;
+  const gain = ensureVideoGain(video);
+  if (gain) gain.gain.value = target;
+}
+
 export default function LivePhotoScript() {
   useEffect(() => {
     let autoplayEnabled = getAutoplaySetting();
@@ -69,11 +114,10 @@ export default function LivePhotoScript() {
     function setupVideos() {
       const found = Array.from(document.querySelectorAll<HTMLVideoElement>("video[data-auto-video], article.post video, article.timeline-card video"));
       for (const video of found) {
-        const volume = Math.max(0, Math.min(100, Number(video.dataset.volume || 100))) / 100;
         video.removeAttribute("controls");
         video.defaultMuted = mutedEnabled;
         video.muted = mutedEnabled;
-        video.volume = volume;
+        applyVideoVolume(video);
         video.loop = true;
         video.autoplay = autoplayEnabled;
         video.playsInline = true;
@@ -133,6 +177,17 @@ export default function LivePhotoScript() {
 
     videos = setupVideos();
 
+    // iOS requires a user gesture to start an AudioContext. Resume on first
+    // interaction so per-video gain takes effect once the user unmutes.
+    function resumeAudioContextOnGesture() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      for (const video of videos) applyVideoVolume(video);
+    }
+    window.addEventListener("pointerdown", resumeAudioContextOnGesture, { once: false, passive: true });
+    window.addEventListener("touchstart", resumeAudioContextOnGesture, { once: false, passive: true });
+
     document.addEventListener("click", onClick);
     window.addEventListener("scroll", scheduleVideoUpdate, { passive: true });
     window.addEventListener("resize", scheduleVideoUpdate);
@@ -155,6 +210,8 @@ export default function LivePhotoScript() {
       document.removeEventListener("click", onClick);
       window.removeEventListener("scroll", scheduleVideoUpdate);
       window.removeEventListener("resize", scheduleVideoUpdate);
+      window.removeEventListener("pointerdown", resumeAudioContextOnGesture);
+      window.removeEventListener("touchstart", resumeAudioContextOnGesture);
       window.removeEventListener("blog-video-autoplay-change", onAutoplayChange as EventListener);
       window.removeEventListener("blog-video-muted-change", onMutedChange as EventListener);
       window.clearTimeout(rescan);
