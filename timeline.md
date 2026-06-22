@@ -1,4 +1,4 @@
-![(**draft**) Jess and Brad Visit](/blog/uploads/2026/06/1LNsQGv2ph.jpg@55,0|/blog/uploads/2026/06/cmXWt--QpG.jpg@42,68|/blog/uploads/2026/06/7FHC5Rhz-D.jpg@76,100|/blog/uploads/2026/06/-a2QZz1_WF.jpg@71,100)<buckhorn,jared,jen,pickles>{2026-06-21}
+![(**draft**) We go portage camping](/blog/uploads/2026/06/1LNsQGv2ph.jpg@55,0|/blog/uploads/2026/06/cmXWt--QpG.jpg@42,68|/blog/uploads/2026/06/7FHC5Rhz-D.jpg@76,100|/blog/uploads/2026/06/-a2QZz1_WF.jpg@71,100)<buckhorn,jared,jen,pickles>{2026-06-21}
 
 ![(**draft**) Jess and Brad Visit](/blog/uploads/2026/06/QbwK5qZdg_.jpg)<buckhorn,cheese,friends,jared,jen>{2026-06-20}
 
